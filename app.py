@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 from datetime import datetime
-from db import fetch_data, insert_dataframe, get_all_filter_values
+from db import fetch_data, insert_dataframe, get_all_filter_values, log_execution_time
 # from edit import edit_screen (Moved to conditional block)
 
 st.set_page_config(layout="wide")
@@ -106,6 +106,7 @@ def apply_currency_format(df):
 # -------------------------------
 # REMOVE ZERO COLUMNS
 # -------------------------------
+@log_execution_time
 def remove_zero_columns(df):
     protected_cols = ["month", "date", "branch_name", "series_group"]
     
@@ -167,6 +168,7 @@ with col3:
 # LOAD FILTERS + DATA TOGETHER
 # -------------------------------
 with st.spinner("Loading dashboard..."):
+    _dash_start = time.perf_counter()
 
     # ✅ ONE CALL ONLY
     all_filters = get_all_filter_values(selected_table)
@@ -202,6 +204,9 @@ with st.spinner("Loading dashboard..."):
         df = fetch_data(selected_table, filters=st.session_state.applied_filters, limit=200)
     else:
         df = fetch_data(selected_table, limit=200)
+    
+    _dash_end = time.perf_counter()
+    print(f"[LOG] Dashboard data loading block took {_dash_end - _dash_start:.4f} seconds")
 
 # -------------------------------
 # DERIVE MONTH

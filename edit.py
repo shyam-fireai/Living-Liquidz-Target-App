@@ -5,10 +5,12 @@ from db import (
     fetch_data,
     get_all_filter_values,
     insert_dataframe,
-    execute_query
+    execute_query,
+    log_execution_time
 )
 
 
+@log_execution_time
 def edit_screen(selected_table):
     st.markdown("## ✏️ Edit Data (Excel Mode)")
 

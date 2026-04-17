@@ -3,11 +3,29 @@ import json
 import pandas as pd
 from datetime import datetime
 import streamlit as st
+import time
+import functools
+
+
+# -------------------------------
+# LOGGING DECORATOR
+# -------------------------------
+def log_execution_time(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        print(f"[LOG] {func.__name__} executed in {duration:.4f} seconds")
+        return result
+    return wrapper
 
 
 # -------------------------------
 # CONNECT CLIENT
 # -------------------------------
+@log_execution_time
 @st.cache_resource
 def get_client():
     with open('secrets.json', 'r') as f:
@@ -30,6 +48,7 @@ def get_client():
 # -------------------------------
 # FETCH DATA
 # -------------------------------
+@log_execution_time
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_data(table, filters=None, limit=200):
     client = get_client()
@@ -59,6 +78,7 @@ def fetch_data(table, filters=None, limit=200):
 # -------------------------------
 # FILTER VALUES (CACHED)
 # -------------------------------
+@log_execution_time
 @st.cache_data(ttl=300)
 def get_all_filter_values(table):
     client = get_client()
