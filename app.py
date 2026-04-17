@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 from datetime import datetime
-from db import fetch_data, insert_dataframe, get_all_filter_values, log_execution_time, TABLE_SCHEMAS
+from db import fetch_data, insert_dataframe, get_all_filter_values, log_execution_time, TABLE_SCHEMAS, format_column, remove_zero_columns, apply_currency_format
 # from edit import edit_screen (Moved to conditional block)
 
 st.set_page_config(layout="wide")
@@ -48,60 +48,12 @@ TABLE_CONFIG = {
 REQUIRED_COLUMNS = TABLE_SCHEMAS
 
 # -------------------------------
-# FORMAT COLUMN
-# -------------------------------
-def format_column(col):
-    if col == "series_group":
-        return "Series"
-    return col.replace("_", " ").title()
-
-# -------------------------------
 # ₹ FORMAT
-# -------------------------------
-def format_inr(x):
-    try:
-        x = float(x)
-        s = f"{x:.2f}"
-        parts = s.split(".")
-        num = parts[0]
-        dec = parts[1]
-
-        if len(num) > 3:
-            last3 = num[-3:]
-            rest = num[:-3]
-            rest = ",".join(
-                [rest[max(i-2, 0):i] for i in range(len(rest), 0, -2)][::-1]
-            )
-            num = rest + "," + last3
-
-        return f"₹{num}.{dec}"
-    except:
-        return x
-
-def apply_currency_format(df):
-    for col in df.columns:
-        if "value" in col.lower():
-            df[col] = df[col].apply(format_inr)
-    return df
-
+# (apply_currency_format moved to db.py)
 # -------------------------------
 # REMOVE ZERO COLUMNS
 # -------------------------------
-@log_execution_time
-def remove_zero_columns(df):
-    protected_cols = ["month", "date", "branch_name", "series_group"]
-    
-    other_cols = [c for c in df.columns if c not in protected_cols]
-    if not other_cols:
-        return df
-
-    num_df = df[other_cols].apply(pd.to_numeric, errors='coerce').fillna(0)
-    non_zero_cols = set(num_df.columns[(num_df != 0).any()].tolist())
-
-    cols_to_keep = [c for c in df.columns if c in protected_cols or c in non_zero_cols]
-    
-    return df[cols_to_keep]
-
+# SIDEBAR TABLE SELECT
 # -------------------------------
 # SIDEBAR TABLE SELECT
 # -------------------------------

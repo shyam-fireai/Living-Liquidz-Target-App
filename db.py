@@ -178,8 +178,8 @@ def insert_dataframe(table, df):
         
         for col in df.columns:
             if col in string_cols:
-                # Force to string and fill nulls with empty string
-                df[col] = df[col].astype(str).replace(["None", "nan", "<NA>"], "")
+                # Force to string, uppercase, and fill nulls with empty string
+                df[col] = df[col].astype(str).str.upper().replace(["NONE", "NAN", "<NA>"], "")
             elif df[col].dtype == "object":
                 # For other object types, fill with empty string
                 df[col] = df[col].fillna("")
@@ -211,3 +211,62 @@ def insert_dataframe(table, df):
 def execute_query(query):
     client = get_client()
     client.command(query)
+
+
+# -------------------------------
+# UI FORMATTING HELPERS
+# -------------------------------
+def format_column(col):
+    if col == "series_group":
+        return "Series"
+    return col.replace("_", " ").title()
+
+
+def remove_zero_columns(df):
+    # Columns that should ALWAYS be shown regardless of being zero
+    protected_cols = [
+        "month", "date", "branch_name", "series_group", "series",
+        "item_code", "item_name", "pack_name"
+    ]
+    
+    # Identify non-protected columns
+    other_cols = [c for c in df.columns if c not in protected_cols]
+    if not other_cols:
+        return df
+
+    # Check which of these columns have at least one non-zero value
+    num_df = df[other_cols].apply(pd.to_numeric, errors='coerce').fillna(0)
+    non_zero_cols = set(num_df.columns[(num_df != 0).any()].tolist())
+
+    # Build final column list
+    cols_to_keep = [c for c in df.columns if c in protected_cols or c in non_zero_cols]
+    
+    return df[cols_to_keep]
+
+
+def format_inr(x):
+    try:
+        x = float(x)
+        s = f"{x:.2f}"
+        parts = s.split(".")
+        num = parts[0]
+        dec = parts[1]
+
+        if len(num) > 3:
+            last3 = num[-3:]
+            rest = num[:-3]
+            rest = ",".join(
+                [rest[max(i-2, 0):i] for i in range(len(rest), 0, -2)][::-1]
+            )
+            num = rest + "," + last3
+
+        return f"₹{num}.{dec}"
+    except:
+        return x
+
+
+def apply_currency_format(df):
+    for col in df.columns:
+        if "value" in col.lower():
+            df[col] = df[col].apply(format_inr)
+    return df
