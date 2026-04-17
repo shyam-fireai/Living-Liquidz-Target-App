@@ -24,6 +24,15 @@ def edit_screen(selected_table):
     if "edit_temp_filters" not in st.session_state:
         st.session_state.edit_temp_filters = {}
 
+    if "edit_current_table" not in st.session_state:
+        st.session_state.edit_current_table = selected_table
+
+    if st.session_state.edit_current_table != selected_table:
+        st.session_state.edit_applied_filters = {}
+        st.session_state.edit_temp_filters = {}
+        st.session_state.edit_confirmed_df = None
+        st.session_state.edit_current_table = selected_table
+
     if "edit_confirmed_df" not in st.session_state:
         st.session_state.edit_confirmed_df = None
 
@@ -124,7 +133,7 @@ def edit_screen(selected_table):
     edited_df = st.data_editor(
         display_df,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         key="editor"
     )
 

@@ -106,21 +106,24 @@ def get_all_filter_values(table):
     }
 
     cols = table_columns.get(table, [])
+    if not cols:
+        return {}
+
+    # SINGLE QUERY OPTIMIZATION: Fetch all unique values in one scan
+    col_queries = [f"groupUniqArray({col}) as {col}" for col in cols]
+    query = f"""
+        SELECT {', '.join(col_queries)}
+        FROM {table}
+        WHERE is_active = 1
+    """
+
+    result = client.query(query)
+    
+    # ClickHouse groupUniqArray returns a list for each column in one row
+    row = result.result_rows[0]
     result_dict = {}
-
-    for col in cols:
-        query = f"""
-            SELECT DISTINCT {col}
-            FROM {table}
-            WHERE is_active = 1
-            LIMIT 1000
-        """
-
-        result = client.query(query)
-
-        result_dict[col] = sorted([
-            row[0] for row in result.result_rows if row[0] is not None
-        ])
+    for i, col in enumerate(cols):
+        result_dict[col] = sorted([v for v in row[i] if v is not None])
 
     return result_dict
 

@@ -41,7 +41,7 @@ def upload_modal(selected_table):
     col1, col2 = st.columns([2, 10])
 
     with col1:
-        if st.button("⬅ Back", use_container_width=True):
+        if st.button("⬅ Back", width="stretch"):
             st.session_state.page = "dashboard"
             st.rerun()
 
@@ -100,7 +100,7 @@ def upload_modal(selected_table):
             # -------------------------------
             # PREVIEW
             # -------------------------------
-            st.dataframe(df.head())
+            st.dataframe(df.head(), width="stretch")
 
             # -------------------------------
             # SESSION STATE INIT

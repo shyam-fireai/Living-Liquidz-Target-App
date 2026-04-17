@@ -19,6 +19,8 @@ if "upload_done" not in st.session_state:
 if "applied_filters" not in st.session_state:
     st.session_state.applied_filters = {}
 
+if "current_table" not in st.session_state:
+    st.session_state.current_table = None
 # -------------------------------
 # TABLE CONFIG
 # -------------------------------
@@ -132,6 +134,11 @@ table_display = [TABLE_CONFIG[t]["name"] for t in table_keys]
 selected_display = st.sidebar.radio("Select Table", table_display)
 selected_table = table_keys[table_display.index(selected_display)]
 
+# RESET FILTERS ON TABLE SWITCH
+if st.session_state.current_table != selected_table:
+    st.session_state.applied_filters = {}
+    st.session_state.current_table = selected_table
+
 # -------------------------------
 # EDIT PAGE
 # -------------------------------
@@ -227,4 +234,4 @@ df.columns = [format_column(c) for c in df.columns]
 value_cols = [c for c in df.columns if "Value" in c]
 config = {c: st.column_config.NumberColumn(format="₹ %.2f") for c in value_cols}
 
-st.dataframe(df, column_config=config, use_container_width=True)
+st.dataframe(df, column_config=config, width="stretch")
