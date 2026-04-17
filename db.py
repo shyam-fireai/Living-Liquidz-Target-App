@@ -8,6 +8,7 @@ import streamlit as st
 # -------------------------------
 # CONNECT CLIENT
 # -------------------------------
+@st.cache_resource
 def get_client():
     with open('secrets.json', 'r') as f:
         creds = json.load(f)
@@ -27,8 +28,9 @@ def get_client():
 
 
 # -------------------------------
-# FETCH DATA (NO CACHE UI)
+# FETCH DATA
 # -------------------------------
+@st.cache_data(ttl=60, show_spinner=False)
 def fetch_data(table, filters=None, limit=200):
     client = get_client()
 

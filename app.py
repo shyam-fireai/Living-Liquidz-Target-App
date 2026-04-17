@@ -3,7 +3,7 @@ import pandas as pd
 import time
 from datetime import datetime
 from db import fetch_data, insert_dataframe, get_all_filter_values
-from edit import edit_screen
+# from edit import edit_screen (Moved to conditional block)
 
 st.set_page_config(layout="wide")
 
@@ -108,21 +108,16 @@ def apply_currency_format(df):
 # -------------------------------
 def remove_zero_columns(df):
     protected_cols = ["month", "date", "branch_name", "series_group"]
+    
+    other_cols = [c for c in df.columns if c not in protected_cols]
+    if not other_cols:
+        return df
 
-    cols_to_keep = []
+    num_df = df[other_cols].apply(pd.to_numeric, errors='coerce').fillna(0)
+    non_zero_cols = set(num_df.columns[(num_df != 0).any()].tolist())
 
-    for col in df.columns:
-        if col in protected_cols:
-            cols_to_keep.append(col)
-            continue
-
-        try:
-            numeric_col = pd.to_numeric(df[col], errors='coerce')
-            if not ((numeric_col.fillna(0) == 0).all()):
-                cols_to_keep.append(col)
-        except:
-            cols_to_keep.append(col)
-
+    cols_to_keep = [c for c in df.columns if c in protected_cols or c in non_zero_cols]
+    
     return df[cols_to_keep]
 
 # -------------------------------
@@ -140,6 +135,7 @@ selected_table = table_keys[table_display.index(selected_display)]
 # EDIT PAGE
 # -------------------------------
 if st.session_state.page == "edit":
+    from edit import edit_screen
     edit_screen(selected_table)
     st.stop()
 
@@ -219,10 +215,11 @@ if selected_table == "date_branch_wise_target":
 df = remove_zero_columns(df)
 df.columns = [format_column(c) for c in df.columns]
 
-if TABLE_CONFIG[selected_table]["currency"]:
-    df = apply_currency_format(df)
-
 # -------------------------------
 # DISPLAY
 # -------------------------------
-st.dataframe(df, use_container_width=True)
+# Use native currency formatting for Value columns to keep table numeric and fast
+value_cols = [c for c in df.columns if "Value" in c]
+config = {c: st.column_config.NumberColumn(format="₹ %.2f") for c in value_cols}
+
+st.dataframe(df, column_config=config, use_container_width=True)
