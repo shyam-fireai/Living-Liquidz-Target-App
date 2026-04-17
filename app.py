@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 from datetime import datetime
-from db import fetch_data, insert_dataframe, get_all_filter_values, log_execution_time
+from db import fetch_data, insert_dataframe, get_all_filter_values, log_execution_time, TABLE_SCHEMAS
 # from edit import edit_screen (Moved to conditional block)
 
 st.set_page_config(layout="wide")
@@ -43,30 +43,9 @@ TABLE_CONFIG = {
 }
 
 # -------------------------------
-# REQUIRED COLUMNS
+# REQUIRED COLUMNS (REPLACED BY db.TABLE_SCHEMAS)
 # -------------------------------
-REQUIRED_COLUMNS = {
-    "branch_wise_monthly_target": [
-        "month", "branch_name", "series_group",
-        "target_value1", "incentive_value1",
-        "target_value2", "incentive_value2",
-        "target_value3", "incentive_value3",
-        "target_value4", "incentive_value4",
-        "target_value5", "incentive_value5"
-    ],
-    "date_branch_wise_target": [
-        "date", "branch_name", "series_group",
-        "target_value1", "incentive_value1",
-        "target_value2", "incentive_value2",
-        "target_value3", "incentive_value3",
-        "target_value4", "incentive_value4",
-        "target_value5", "incentive_value5"
-    ],
-    "brand_wise_monthly_target": [
-        "month", "branch_name", "series_group",
-        "item_code", "item_name", "pack_name"
-    ]
-}
+REQUIRED_COLUMNS = TABLE_SCHEMAS
 
 # -------------------------------
 # FORMAT COLUMN

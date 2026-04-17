@@ -41,6 +41,38 @@ def format_sql_values(values):
 
 
 # -------------------------------
+# TABLE SCHEMAS
+# -------------------------------
+TABLE_SCHEMAS = {
+    "branch_wise_monthly_target": [
+        "month", "branch_name", "series_group",
+        "target_value1", "incentive_value1",
+        "target_value2", "incentive_value2",
+        "target_value3", "incentive_value3",
+        "target_value4", "incentive_value4",
+        "target_value5", "incentive_value5"
+    ],
+    "date_branch_wise_target": [
+        "date", "branch_name", "series_group",
+        "target_value1", "incentive_value1",
+        "target_value2", "incentive_value2",
+        "target_value3", "incentive_value3",
+        "target_value4", "incentive_value4",
+        "target_value5", "incentive_value5"
+    ],
+    "brand_wise_monthly_target": [
+        "month", "branch_name", "series_group",
+        "item_code", "item_name", "pack_name",
+        "target_qty1", "incentive_value1",
+        "target_qty2", "incentive_value2",
+        "target_qty3", "incentive_value3",
+        "target_qty4", "incentive_value4",
+        "target_qty5", "incentive_value5"
+    ]
+}
+
+
+# -------------------------------
 # CONNECT CLIENT
 # -------------------------------
 @log_execution_time
@@ -99,13 +131,17 @@ def fetch_data(table, filters=None, limit=200):
 def get_all_filter_values(table):
     client = get_client()
 
-    table_columns = {
-        "branch_wise_monthly_target": ["month", "branch_name", "series_group"],
-        "date_branch_wise_target": ["date", "branch_name", "series_group"],
-        "brand_wise_monthly_target": ["month", "branch_name", "series_group", "item_code", "item_name"]
-    }
+    # Get filter columns from schemas (first 5 columns are typically the filter indices)
+    all_cols = TABLE_SCHEMAS.get(table, [])
+    
+    # Define which columns should be filters based on table type
+    if table == "brand_wise_monthly_target":
+        cols = ["month", "branch_name", "series_group", "item_code", "item_name"]
+    elif table == "date_branch_wise_target":
+        cols = ["date", "branch_name", "series_group"]
+    else:
+        cols = ["month", "branch_name", "series_group"]
 
-    cols = table_columns.get(table, [])
     if not cols:
         return {}
 
@@ -137,10 +173,21 @@ def insert_dataframe(table, df):
 
         df = df.copy()
 
+        # Identify columns that should be strings to avoid numpy numeric type issues
+        string_cols = ["branch_name", "series_group", "item_code", "item_name", "pack_name", "series"]
+        
         for col in df.columns:
-            if df[col].dtype == "object":
+            if col in string_cols:
+                # Force to string and fill nulls with empty string
+                df[col] = df[col].astype(str).replace(["None", "nan", "<NA>"], "")
+            elif df[col].dtype == "object":
+                # For other object types, fill with empty string
                 df[col] = df[col].fillna("")
+            elif "target" in col.lower() or "incentive" in col.lower():
+                # Ensure targets and incentives are numeric
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             else:
+                # For integers and others
                 df[col] = df[col].fillna(0)
 
         now_dt = datetime.now()
