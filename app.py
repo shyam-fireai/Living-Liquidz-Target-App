@@ -116,6 +116,8 @@ selected_table = table_keys[table_display.index(selected_display)]
 # RESET FILTERS ON TABLE SWITCH
 if st.session_state.current_table != selected_table:
     st.session_state.applied_filters = {}
+    st.session_state.upload_done = False
+    st.session_state.upload_msg = ""
     st.session_state.current_table = selected_table
 
 # -------------------------------

@@ -45,7 +45,7 @@ def upload_modal(selected_table):
     # -------------------------------
     # FILE UPLOAD
     # -------------------------------
-    uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+    uploaded_file = st.file_uploader("Upload CSV", type=["csv"], key=f"uploader_{selected_table}")
 
     if uploaded_file is not None:
 
