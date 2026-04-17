@@ -157,14 +157,28 @@ if selected_table == "date_branch_wise_target":
 # -------------------------------
 # CLEAN DATA
 # -------------------------------
+# Drop system columns
+df = df.drop(columns=['version', 'updated_at', 'is_active'], errors='ignore')
+
+# Remove zero/empty columns
 df = remove_zero_columns(df)
+
+# Apply Indian Comma formatting (₹ and Lakhs/Crores) for currency tables
+if TABLE_CONFIG[selected_table].get("currency"):
+    df = apply_currency_format(df)
+
+# Standardize Headers
 df.columns = [format_column(c) for c in df.columns]
 
 # -------------------------------
 # DISPLAY
 # -------------------------------
-# Use native currency formatting for Value columns to keep table numeric and fast
-value_cols = [c for c in df.columns if "Value" in c]
-config = {c: st.column_config.NumberColumn(format="₹ %.2f") for c in value_cols}
+# Use native formatting ONLY for columns that are still numeric (e.g. Qty in non-currency tables)
+# Formatted currency columns are now strings and will be handled as Text automatically
+numeric_cols = [
+    c for c in df.columns 
+    if any(x in c for x in ["Qty", "Value"]) and pd.api.types.is_numeric_dtype(df[c])
+]
+config = {c: st.column_config.NumberColumn(format="%.2f") for c in numeric_cols}
 
 st.dataframe(df, column_config=config, width="stretch")
