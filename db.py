@@ -23,6 +23,24 @@ def log_execution_time(func):
 
 
 # -------------------------------
+# SQL VALUE FORMATTER
+# -------------------------------
+def format_sql_values(values):
+    if not values:
+        return ""
+    
+    formatted = []
+    for v in values:
+        if isinstance(v, (int, float)):
+            formatted.append(str(v))
+        else:
+            # Wrap strings and dates in quotes
+            formatted.append(f"'{v}'")
+            
+    return ", ".join(formatted)
+
+
+# -------------------------------
 # CONNECT CLIENT
 # -------------------------------
 @log_execution_time
@@ -59,9 +77,7 @@ def fetch_data(table, filters=None, limit=200):
     if filters:
         for col, values in filters.items():
             if values:
-                values_str = ", ".join(
-                    [f"'{v}'" if isinstance(v, str) else str(v) for v in values]
-                )
+                values_str = format_sql_values(values)
                 conditions.append(f"{col} IN ({values_str})")
 
     if conditions:

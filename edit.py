@@ -6,7 +6,8 @@ from db import (
     get_all_filter_values,
     insert_dataframe,
     execute_query,
-    log_execution_time
+    log_execution_time,
+    format_sql_values
 )
 
 
@@ -182,11 +183,9 @@ def edit_screen(selected_table):
                 condition_parts = []
 
                 for k, vals in applied_filters.items():
-                    val_str = ", ".join(
-                        [f"'{v}'" if isinstance(v, str) else str(v) for v in vals]
-                    )
+                    val_str = format_sql_values(vals)
                     condition_parts.append(f"{k} IN ({val_str})")
-
+                
                 condition = " AND ".join(condition_parts)
 
                 # -------------------------------
