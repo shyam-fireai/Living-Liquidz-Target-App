@@ -166,6 +166,14 @@ if TABLE_CONFIG[selected_table].get("currency"):
 # Standardize Headers
 df.columns = [format_column(c) for c in df.columns]
 
+# Format Date/Month columns to show only the date (remove 00:00:00)
+for col in ["Date", "Month"]:
+    if col in df.columns:
+        try:
+            df[col] = pd.to_datetime(df[col]).dt.date
+        except:
+            pass
+
 # -------------------------------
 # DISPLAY
 # -------------------------------

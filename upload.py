@@ -77,7 +77,7 @@ def upload_modal(selected_table):
             # -------------------------------
             if "month" in df.columns:
                 try:
-                    df["month"] = pd.to_datetime(df["month"])
+                    df["month"] = pd.to_datetime(df["month"]).dt.date
                 except Exception:
                     st.error("❌ **Invalid Month Format:** Some dates in the 'month' column are not recognized. Please use the format **YYYY-MM-DD** (e.g., **2026-03-01**).")
                     return
@@ -93,7 +93,7 @@ def upload_modal(selected_table):
 
             if "date" in df.columns:
                 try:
-                    df["date"] = pd.to_datetime(df["date"])
+                    df["date"] = pd.to_datetime(df["date"]).dt.date
                 except Exception:
                     st.error("❌ **Invalid Date Format:** Some dates in the 'date' column are not recognized. Please use the format **YYYY-MM-DD** (e.g., **2026-04-17**).")
                     return
