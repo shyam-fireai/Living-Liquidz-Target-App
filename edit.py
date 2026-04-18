@@ -13,7 +13,13 @@ from db import (
 
 @log_execution_time
 def edit_screen(selected_table):
-    st.markdown("## ✏️ Edit Data (Excel Mode)")
+    c1, c2 = st.columns([1, 6])
+    with c1:
+        if st.button("⬅ Back", key="top_back"):
+            st.session_state.page = "dashboard"
+            st.rerun()
+    with c2:
+        st.markdown("## ✏️ Edit Data (Excel Mode)")
 
     # -------------------------------
     # SESSION STATE INIT
