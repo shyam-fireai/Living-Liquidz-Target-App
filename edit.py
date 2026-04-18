@@ -47,17 +47,10 @@ def edit_screen(selected_table):
     all_filters = get_all_filter_values(selected_table)
 
     TABLE_FILTERS = {
-        "branch_wise_monthly_target": [
-        "month", "branch_name", "series_group"
-        ],
-    "date_branch_wise_target": [
-        "date", "branch_name", "series_group"
-    ],
-    "brand_wise_monthly_target": [
-        "month", "branch_name", "series_group",
-        "item_code", "item_name"
-    ]
-}
+        "branch_wise_monthly_target": ["month", "branch_name", "series_group"],
+        "date_branch_wise_target": ["date", "branch_name", "series_group"],
+        "brand_wise_monthly_target": ["month", "branch_name", "series_group", "item_code", "item_name"]
+    }
 
     filter_cols = TABLE_FILTERS.get(selected_table, [])
 
@@ -102,12 +95,11 @@ def edit_screen(selected_table):
     # -------------------------------
     applied_filters = st.session_state.edit_applied_filters
 
-    with st.spinner("Loading data..."):
+    with st.spinner("Loading records..."):
         if not applied_filters:
-            st.warning("⚠️ Please apply filters to load data")
-            return
-
-        with st.spinner("Loading filtered data..."):
+            st.info("ℹ️ Showing first 200 records. Use filters to narrow down.")
+            df = fetch_data(selected_table, limit=200)
+        else:
             df = fetch_data(selected_table, filters=applied_filters, limit=200)
 
     if df.empty:
@@ -189,13 +181,32 @@ def edit_screen(selected_table):
                 # -------------------------------
                 # BUILD WHERE CONDITION
                 # -------------------------------
-                condition_parts = []
-
-                for k, vals in applied_filters.items():
-                    val_str = format_sql_values(vals)
-                    condition_parts.append(f"{k} IN ({val_str})")
+                # We identify columns that uniquely define a row in this table
+                key_cols = TABLE_FILTERS.get(selected_table, [])
                 
-                condition = " AND ".join(condition_parts)
+                if applied_filters:
+                    # Case 1: Filtered replacement (standard)
+                    condition_parts = []
+                    for k, vals in applied_filters.items():
+                        val_str = format_sql_values(vals)
+                        condition_parts.append(f"{k} IN ({val_str})")
+                    condition = " AND ".join(condition_parts)
+                else:
+                    # Case 2: Direct replacement (replace ONLY the 200 shown records)
+                    # We use a multi-column IN clause for precision
+                    keys_to_deactivate = []
+                    
+                    # Convert dates to string for SQL if they are objects
+                    tmp_df = original_df.copy()
+                    for col in key_cols:
+                        if "month" in col or "date" in col:
+                             tmp_df[col] = pd.to_datetime(tmp_df[col]).dt.strftime('%Y-%m-%d')
+                    
+                    for _, row in tmp_df.iterrows():
+                        key_vals = [f"'{row[c]}'" if isinstance(row[c], str) else str(row[c]) for c in key_cols]
+                        keys_to_deactivate.append(f"({', '.join(key_vals)})")
+                    
+                    condition = f"({', '.join(key_cols)}) IN ({', '.join(keys_to_deactivate)})"
 
                 # -------------------------------
                 # DEACTIVATE OLD DATA
