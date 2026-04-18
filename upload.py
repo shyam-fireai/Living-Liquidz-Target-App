@@ -77,7 +77,7 @@ def upload_modal(selected_table):
             # -------------------------------
             if "month" in df.columns:
                 try:
-                    df["month"] = pd.to_datetime(df["month"]).dt.date
+                    df["month"] = pd.to_datetime(df["month"])
                 except Exception:
                     st.error("❌ **Invalid Month Format:** Some dates in the 'month' column are not recognized. Please use the format **YYYY-MM-DD** (e.g., **2026-03-01**).")
                     return
@@ -93,7 +93,7 @@ def upload_modal(selected_table):
 
             if "date" in df.columns:
                 try:
-                    df["date"] = pd.to_datetime(df["date"]).dt.date
+                    df["date"] = pd.to_datetime(df["date"])
                 except Exception:
                     st.error("❌ **Invalid Date Format:** Some dates in the 'date' column are not recognized. Please use the format **YYYY-MM-DD** (e.g., **2026-04-17**).")
                     return
@@ -101,8 +101,13 @@ def upload_modal(selected_table):
             # -------------------------------
             # PREVIEW (Hide zero columns, format currency, and rename headers for display)
             # -------------------------------
-            preview_df = remove_zero_columns(df).head()
+            preview_df = remove_zero_columns(df).head().copy()
             
+            # Show only the date part in preview (remove 00:00:00)
+            for col in ["month", "date"]:
+                if col in preview_df.columns:
+                    preview_df[col] = pd.to_datetime(preview_df[col]).dt.date
+
             # Apply Indian Rupee formatting for currency tables
             if selected_table in ["branch_wise_monthly_target", "date_branch_wise_target"]:
                 preview_df = apply_currency_format(preview_df)
