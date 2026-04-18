@@ -148,11 +148,7 @@ with st.spinner("Loading dashboard..."):
     _dash_end = time.perf_counter()
     print(f"[LOG] Dashboard data loading block took {_dash_end - _dash_start:.4f} seconds")
 
-# -------------------------------
-# DERIVE MONTH
-# -------------------------------
-if selected_table == "date_branch_wise_target":
-    df["month"] = pd.to_datetime(df["date"]).dt.to_period("M").astype(str)
+# (Month derivation removed as requested)
 
 # -------------------------------
 # CLEAN DATA
