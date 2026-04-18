@@ -66,11 +66,25 @@ def edit_screen(selected_table):
         try:
             values = all_filters.get(col, [])
 
-            selected = st.sidebar.multiselect(
-                col.replace("_", " ").title(),
-                values,
-                default=st.session_state.edit_temp_filters.get(col, [])
-            )
+            if col == "date":
+                # Compact Date Range Picker
+                prev_dates = st.session_state.edit_temp_filters.get(col, [])
+                d1_val = prev_dates[0] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 1 else None
+                d2_val = prev_dates[1] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 2 else None
+                
+                st.sidebar.caption("📅 Select Date Range")
+                c1, c2 = st.sidebar.columns(2)
+                with c1:
+                    d1 = st.date_input("From", value=d1_val, key=f"e_d1_{selected_table}")
+                with c2:
+                    d2 = st.date_input("To", value=d2_val, key=f"e_d2_{selected_table}")
+                selected = (d1, d2)
+            else:
+                selected = st.sidebar.multiselect(
+                    col.replace("_", " ").title(),
+                    values,
+                    default=st.session_state.edit_temp_filters.get(col, [])
+                )
 
             if selected:
                 st.session_state.edit_temp_filters[col] = selected
@@ -203,8 +217,11 @@ def edit_screen(selected_table):
                     # Case 1: Filtered replacement (standard)
                     condition_parts = []
                     for k, vals in applied_filters.items():
-                        val_str = format_sql_values(vals)
-                        condition_parts.append(f"{k} IN ({val_str})")
+                        if isinstance(vals, (list, tuple)) and len(vals) == 2 and k == "date":
+                            condition_parts.append(f"{k} BETWEEN '{vals[0]}' AND '{vals[1]}'")
+                        else:
+                            val_str = format_sql_values(vals)
+                            condition_parts.append(f"{k} IN ({val_str})")
                     condition = " AND ".join(condition_parts)
                 else:
                     # Case 2: Direct replacement (replace ONLY the 200 shown records)

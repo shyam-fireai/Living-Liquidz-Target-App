@@ -123,11 +123,26 @@ with st.spinner("Loading dashboard..."):
     for col in filters_config:
         values = all_filters.get(col, [])
 
-        selected = st.sidebar.multiselect(
-            format_column(col),
-            values,
-            default=st.session_state.applied_filters.get(col, [])
-        )
+        if col == "date":
+            # Compact Date Range Picker using side-by-side columns
+            prev_dates = st.session_state.applied_filters.get(col, [])
+            # Initialize with today or existing values
+            d1_val = prev_dates[0] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 1 else None
+            d2_val = prev_dates[1] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 2 else None
+            
+            st.sidebar.caption("📅 Select Date Range")
+            c1, c2 = st.sidebar.columns(2)
+            with c1:
+                d1 = st.date_input("From", value=d1_val, key=f"f_d1_{selected_table}")
+            with c2:
+                d2 = st.date_input("To", value=d2_val, key=f"f_d2_{selected_table}")
+            selected = (d1, d2)
+        else:
+            selected = st.sidebar.multiselect(
+                format_column(col),
+                values,
+                default=st.session_state.applied_filters.get(col, [])
+            )
 
         current_filters[col] = selected
 

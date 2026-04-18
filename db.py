@@ -109,8 +109,12 @@ def fetch_data(table, filters=None, limit=200):
     if filters:
         for col, values in filters.items():
             if values:
-                values_str = format_sql_values(values)
-                conditions.append(f"{col} IN ({values_str})")
+                # Check if this is a date range tuple (start, end)
+                if isinstance(values, (list, tuple)) and len(values) == 2 and col in ["date", "month"]:
+                    conditions.append(f"{col} BETWEEN '{values[0]}' AND '{values[1]}'")
+                else:
+                    values_str = format_sql_values(values)
+                    conditions.append(f"{col} IN ({values_str})")
 
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
