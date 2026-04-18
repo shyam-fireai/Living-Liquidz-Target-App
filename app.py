@@ -161,9 +161,9 @@ df = df.drop(columns=['version', 'updated_at', 'is_active'], errors='ignore')
 # Remove zero/empty columns
 df = remove_zero_columns(df)
 
-# Apply Indian Comma formatting (₹ and Lakhs/Crores) for currency tables
-if TABLE_CONFIG[selected_table].get("currency"):
-    df = apply_currency_format(df)
+# Apply Indian Comma formatting (Lakhs/Crores) 
+# Handles both Currency (Values) and Quantities (Qty)
+df = apply_currency_format(df)
 
 # Standardize Headers
 df.columns = [format_column(c) for c in df.columns]

@@ -7,7 +7,9 @@ from db import (
     insert_dataframe,
     execute_query,
     log_execution_time,
-    format_sql_values
+    format_sql_values,
+    format_column,
+    apply_currency_format
 )
 
 
@@ -122,14 +124,21 @@ def edit_screen(selected_table):
         errors="ignore"
     )
 
+    # Apply Indian formatting for display in the editor
+    display_df = apply_currency_format(display_df)
+
     # Store original snapshot
     st.session_state.edit_original_df = display_df.copy()
 
     # -------------------------------
-    # DATA EDITOR
+    # DATA EDITOR (With Pretty Headers)
     # -------------------------------
+    # We use column_config to show nice labels while keeping technical names for the code
+    editor_config = {col: st.column_config.Column(label=format_column(col)) for col in display_df.columns}
+    
     edited_df = st.data_editor(
         display_df,
+        column_config=editor_config,
         num_rows="dynamic",
         width="stretch",
         key="editor"
@@ -157,10 +166,10 @@ def edit_screen(selected_table):
         st.subheader("🔍 Changes Summary")
 
         st.markdown("### 🟥 Before")
-        st.dataframe(original_rows, use_container_width=True)
+        st.dataframe(original_rows.rename(columns=format_column), use_container_width=True)
 
         st.markdown("### 🟩 After")
-        st.dataframe(changed_rows, use_container_width=True)
+        st.dataframe(changed_rows.rename(columns=format_column), use_container_width=True)
 
         st.info("👉 Review changes and click Final Save")
 

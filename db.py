@@ -183,8 +183,10 @@ def insert_dataframe(table, df):
             elif df[col].dtype == "object":
                 # For other object types, fill with empty string
                 df[col] = df[col].fillna("")
-            elif "target" in col.lower() or "incentive" in col.lower():
-                # Ensure targets and incentives are numeric
+            elif any(x in col.lower() for x in ["target", "incentive", "qty"]):
+                # Ensure targets, incentives and quantities are numeric
+                # Clean any ₹ or , symbols if they exist (allows us to save from formatted editor)
+                df[col] = df[col].astype(str).str.replace("₹", "", regex=False).str.replace(",", "", regex=False)
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             else:
                 # For integers and others
@@ -244,10 +246,16 @@ def remove_zero_columns(df):
     return df[cols_to_keep]
 
 
-def format_inr(x):
+def format_indian_number(x, show_rupee=True):
     try:
-        x = float(x)
-        s = f"{x:.2f}"
+        if pd.isna(x) or x == "":
+            return "0.00"
+        
+        # Clean any existing formatting first to avoid double formatting
+        val = str(x).replace("₹", "").replace(",", "")
+        x_float = float(val)
+        
+        s = f"{x_float:.2f}"
         parts = s.split(".")
         num = parts[0]
         dec = parts[1]
@@ -260,13 +268,17 @@ def format_inr(x):
             )
             num = rest + "," + last3
 
-        return f"₹{num}.{dec}"
-    except:
+        prefix = "₹" if show_rupee else ""
+        return f"{prefix}{num}.{dec}"
+    except Exception:
         return x
 
 
 def apply_currency_format(df):
+    df = df.copy()
     for col in df.columns:
         if "value" in col.lower():
-            df[col] = df[col].apply(format_inr)
+            df[col] = df[col].apply(lambda x: format_indian_number(x, show_rupee=True))
+        elif "qty" in col.lower():
+            df[col] = df[col].apply(lambda x: format_indian_number(x, show_rupee=False))
     return df
