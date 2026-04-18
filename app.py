@@ -19,6 +19,9 @@ if "upload_done" not in st.session_state:
 if "applied_filters" not in st.session_state:
     st.session_state.applied_filters = {}
 
+if "temp_filters" not in st.session_state:
+    st.session_state.temp_filters = {}
+
 if "current_table" not in st.session_state:
     st.session_state.current_table = None
 # -------------------------------
@@ -112,11 +115,16 @@ with col3:
 with st.spinner("Loading dashboard..."):
     _dash_start = time.perf_counter()
 
-    # ✅ ONE CALL ONLY
-    all_filters = get_all_filter_values(selected_table)
-
+    # ✅ SYNC LIVE STATE
+    # At the start of rerun, pull latest widget choices into temp_filters
     filters_config = TABLE_CONFIG[selected_table]["filters"]
-    current_filters = {}
+    for col in filters_config:
+        w_key = f"sb_filter_{col}_{selected_table}"
+        if w_key in st.session_state:
+            st.session_state.temp_filters[col] = st.session_state[w_key]
+
+    # ✅ DYNAMIC CASCADING FILTERS
+    all_filters = get_all_filter_values(selected_table, st.session_state.temp_filters)
 
     st.sidebar.subheader("🔍 Filters")
 
@@ -124,41 +132,43 @@ with st.spinner("Loading dashboard..."):
         values = all_filters.get(col, [])
 
         if col == "date":
-            # Compact Date Range Picker using side-by-side columns
-            prev_dates = st.session_state.applied_filters.get(col, [])
-            # Initialize with today or existing values
+            # Compact Date Range Picker
+            prev_dates = st.session_state.temp_filters.get(col, [])
             d1_val = prev_dates[0] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 1 else None
             d2_val = prev_dates[1] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 2 else None
             
             st.sidebar.caption("📅 Select Date Range")
-            c1, c2 = st.sidebar.columns(2)
-            with c1:
-                d1 = st.date_input("From", value=d1_val, key=f"f_d1_{selected_table}")
-            with c2:
-                d2 = st.date_input("To", value=d2_val, key=f"f_d2_{selected_table}")
-            selected = (d1, d2)
+            selected = st.sidebar.date_input(
+                "Range",
+                value=(d1_val, d2_val) if d1_val and d2_val else (d1_val,) if d1_val else [],
+                key=f"sb_filter_{col}_{selected_table}",
+                label_visibility="collapsed"
+            )
         else:
             selected = st.sidebar.multiselect(
                 format_column(col),
                 values,
-                default=st.session_state.applied_filters.get(col, [])
+                key=f"sb_filter_{col}_{selected_table}",
+                default=[v for v in st.session_state.temp_filters.get(col, []) if v in values]
             )
 
-        current_filters[col] = selected
+        # Update temp state immediately for cascading effect next rerun
+        st.session_state.temp_filters[col] = selected
 
-    if st.sidebar.button("🚀 Apply Filters"):
-        st.session_state.applied_filters = current_filters
-        st.rerun()
-
-    if st.sidebar.button("🔄 Reset Filters"):
+    # -------------------------------
+    # RESET
+    # -------------------------------
+    if st.sidebar.button("🔄 Reset Filters", use_container_width=True):
         st.session_state.applied_filters = {}
+        st.session_state.temp_filters = {}
         st.rerun()
 
     # -------------------------------
-    # FETCH DATA
+    # FETCH DATA (LIVE)
     # -------------------------------
-    if st.session_state.applied_filters:
-        df = fetch_data(selected_table, filters=st.session_state.applied_filters, limit=200)
+    # The dashboard now updates instantly based on temp_filters
+    if st.session_state.temp_filters:
+        df = fetch_data(selected_table, filters=st.session_state.temp_filters, limit=200)
     else:
         df = fetch_data(selected_table, limit=200)
     

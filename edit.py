@@ -47,20 +47,23 @@ def edit_screen(selected_table):
     if "edit_original_df" not in st.session_state:
         st.session_state.edit_original_df = None
 
-    # -------------------------------
-    # FILTERS (FAST - SINGLE CALL)
-    # -------------------------------
-    st.sidebar.subheader("🔍 Edit Filters")
-
-    all_filters = get_all_filter_values(selected_table)
-
+    # ✅ DYNAMIC CASCADING FILTERS
+    # ✅ SYNC LIVE STATE
+    # At the start of rerun, pull latest widget choices into temp_filters
     TABLE_FILTERS = {
         "branch_wise_monthly_target": ["month", "branch_name", "series_group"],
         "date_branch_wise_target": ["date", "branch_name", "series_group"],
         "brand_wise_monthly_target": ["month", "branch_name", "series_group", "item_code", "item_name"]
     }
-
     filter_cols = TABLE_FILTERS.get(selected_table, [])
+    
+    for col in filter_cols:
+        w_key = f"ed_filter_{col}_{selected_table}"
+        if w_key in st.session_state:
+            st.session_state.edit_temp_filters[col] = st.session_state[w_key]
+
+    # ✅ DYNAMIC CASCADING FILTERS
+    all_filters = get_all_filter_values(selected_table, st.session_state.edit_temp_filters)
 
     for col in filter_cols:
         try:
@@ -73,17 +76,18 @@ def edit_screen(selected_table):
                 d2_val = prev_dates[1] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 2 else None
                 
                 st.sidebar.caption("📅 Select Date Range")
-                c1, c2 = st.sidebar.columns(2)
-                with c1:
-                    d1 = st.date_input("From", value=d1_val, key=f"e_d1_{selected_table}")
-                with c2:
-                    d2 = st.date_input("To", value=d2_val, key=f"e_d2_{selected_table}")
-                selected = (d1, d2)
+                selected = st.sidebar.date_input(
+                    "Range",
+                    value=(d1_val, d2_val) if d1_val and d2_val else (d1_val,) if d1_val else [],
+                    key=f"ed_filter_{col}_{selected_table}",
+                    label_visibility="collapsed"
+                )
             else:
                 selected = st.sidebar.multiselect(
                     col.replace("_", " ").title(),
                     values,
-                    default=st.session_state.edit_temp_filters.get(col, [])
+                    key=f"ed_filter_{col}_{selected_table}",
+                    default=[v for v in st.session_state.edit_temp_filters.get(col, []) if v in values]
                 )
 
             if selected:
@@ -95,34 +99,25 @@ def edit_screen(selected_table):
             st.warning(f"{col} error: {e}")
 
     # -------------------------------
-    # APPLY / RESET
+    # RESET
     # -------------------------------
-    col1, col2 = st.sidebar.columns(2)
-
-    with col1:
-        if st.button("🚀 Apply"):
-            st.session_state.edit_applied_filters = st.session_state.edit_temp_filters.copy()
-            st.session_state.edit_confirmed_df = None
-            st.rerun()
-
-    with col2:
-        if st.button("🔄 Reset"):
-            st.session_state.edit_temp_filters = {}
-            st.session_state.edit_applied_filters = {}
-            st.session_state.edit_confirmed_df = None
-            st.rerun()
-
+    if st.sidebar.button("🔄 Reset Filters", use_container_width=True):
+        st.session_state.edit_temp_filters = {}
+        st.session_state.edit_applied_filters = {}
+        st.session_state.edit_confirmed_df = None
+        st.rerun()
+    # LOAD DATA (LIVE)
     # -------------------------------
-    # LOAD DATA
-    # -------------------------------
-    applied_filters = st.session_state.edit_applied_filters
-
+    # The editor now updates instantly based on temp_filters
     with st.spinner("Loading records..."):
-        if not applied_filters:
+        if not st.session_state.edit_temp_filters:
             st.info("ℹ️ Showing first 200 records. Use filters to narrow down.")
             df = fetch_data(selected_table, limit=200)
         else:
-            df = fetch_data(selected_table, filters=applied_filters, limit=200)
+            df = fetch_data(selected_table, filters=st.session_state.edit_temp_filters, limit=200)
+    
+    # Update applied_filters for Save logic
+    applied_filters = st.session_state.edit_temp_filters
 
     if df.empty:
         st.warning("No data available")

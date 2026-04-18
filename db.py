@@ -131,14 +131,11 @@ def fetch_data(table, filters=None, limit=200):
 # FILTER VALUES (CACHED)
 # -------------------------------
 @log_execution_time
-@st.cache_data(ttl=300)
-def get_all_filter_values(table):
+@st.cache_data(ttl=300, show_spinner=False)
+def get_filter_index(table):
+    """Fetches a unique combination of all filter columns to allow fast cascading filtering in memory."""
     client = get_client()
 
-    # Get filter columns from schemas (first 5 columns are typically the filter indices)
-    all_cols = TABLE_SCHEMAS.get(table, [])
-    
-    # Define which columns should be filters based on table type
     if table == "brand_wise_monthly_target":
         cols = ["month", "branch_name", "series_group", "item_code", "item_name"]
     elif table == "date_branch_wise_target":
@@ -146,24 +143,50 @@ def get_all_filter_values(table):
     else:
         cols = ["month", "branch_name", "series_group"]
 
-    if not cols:
-        return {}
-
-    # SINGLE QUERY OPTIMIZATION: Fetch all unique values in one scan
-    col_queries = [f"groupUniqArray({col}) as {col}" for col in cols]
     query = f"""
-        SELECT {', '.join(col_queries)}
+        SELECT DISTINCT {', '.join(cols)}
         FROM {table}
         WHERE is_active = 1
     """
-
     result = client.query(query)
-    
-    # ClickHouse groupUniqArray returns a list for each column in one row
-    row = result.result_rows[0]
+    return pd.DataFrame(result.result_rows, columns=result.column_names)
+
+
+def get_all_filter_values(table, current_selections=None):
+    """Returns available options for every filter, constrained by the selections in other filters."""
+    index_df = get_filter_index(table)
+    if index_df.empty:
+        return {}
+
+    cols = index_df.columns.tolist()
     result_dict = {}
-    for i, col in enumerate(cols):
-        result_dict[col] = sorted([v for v in row[i] if v is not None])
+
+    for target_col in cols:
+        # Build mask for ALL OTHER columns
+        mask = pd.Series(True, index=index_df.index)
+        
+        if current_selections:
+            for col, vals in current_selections.items():
+                if col != target_col and vals:
+                    # Handle Date Range
+                    if isinstance(vals, (list, tuple)) and col in ["date", "month"]:
+                        # Convert to same timezone-naive datetime for robust comparison
+                        series_dt = pd.to_datetime(index_df[col]).dt.tz_localize(None)
+                        if len(vals) == 2:
+                            start = pd.to_datetime(vals[0]).tz_localize(None)
+                            end = pd.to_datetime(vals[1]).tz_localize(None)
+                            mask &= (series_dt >= start) & (series_dt <= end)
+                        elif len(vals) == 1:
+                            # Partial range: match start date exactly for now
+                            start = pd.to_datetime(vals[0]).tz_localize(None)
+                            mask &= (series_dt == start)
+                    # Handle Multiselect
+                    elif isinstance(vals, (list, tuple)):
+                        mask &= index_df[col].astype(str).isin([str(v) for v in vals])
+        
+        # Extract unique values from masked dataframe
+        unique_vals = index_df.loc[mask, target_col].unique().tolist()
+        result_dict[target_col] = sorted([v for v in unique_vals if v is not None])
 
     return result_dict
 
