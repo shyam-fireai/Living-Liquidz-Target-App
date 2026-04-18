@@ -99,10 +99,12 @@ with col1:
 with col2:
     if st.button("✏️ Edit"):
         st.session_state.page = "edit"
+        st.rerun()
 
 with col3:
     if st.button("📤 Upload"):
         st.session_state.page = "upload"
+        st.rerun()
 
 # -------------------------------
 # LOAD FILTERS + DATA TOGETHER
