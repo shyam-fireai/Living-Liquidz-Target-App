@@ -209,14 +209,18 @@ for col in ["Date", "Month"]:
             pass
 
 # -------------------------------
-# DISPLAY
+# DISPLAY (FLEXIBLE DATAFRAME)
 # -------------------------------
-# Use native formatting ONLY for columns that are still numeric (e.g. Qty in non-currency tables)
-# Formatted currency columns are now strings and will be handled as Text automatically
+# Use native formatting ONLY for columns that are still numeric
 numeric_cols = [
     c for c in df.columns 
     if any(x in c for x in ["Qty", "Value"]) and pd.api.types.is_numeric_dtype(df[c])
 ]
 config = {c: st.column_config.NumberColumn(format="%.2f") for c in numeric_cols}
 
-st.dataframe(df, column_config=config, width="stretch")
+# Apply Pandas styling to force bold and black headers while keeping the table interactive
+styled_df = df.style.set_table_styles(
+    [{'selector': 'th', 'props': [('font-weight', 'bold !important'), ('color', 'black !important')]}]
+)
+
+st.dataframe(styled_df, column_config=config, use_container_width=True, hide_index=True)
