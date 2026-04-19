@@ -5,7 +5,23 @@ from datetime import datetime
 from db import fetch_data, insert_dataframe, get_all_filter_values, log_execution_time, TABLE_SCHEMAS, format_column, remove_zero_columns, apply_currency_format
 # from edit import edit_screen (Moved to conditional block)
 
-st.set_page_config(layout="wide")
+# -------------------------------
+# UI SETTINGS (HIDE STREAMLIT HEADER/MENU)
+# -------------------------------
+st.set_page_config(
+    page_title="Living Liquid Dashboard",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # -------------------------------
 # SESSION STATE
