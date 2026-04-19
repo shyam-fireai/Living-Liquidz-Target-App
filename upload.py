@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
-from db import insert_dataframe, TABLE_SCHEMAS, format_column, remove_zero_columns, apply_currency_format
-
+import io
+from db import TABLE_SCHEMAS, insert_dataframe, get_client, format_column, remove_zero_columns, apply_currency_format
+from style_utils import inject_minimalist_theme, render_header
 
 # -------------------------------
 # REQUIRED SCHEMA (REPLACED BY db.TABLE_SCHEMAS)
@@ -10,22 +11,23 @@ REQUIRED_COLUMNS = TABLE_SCHEMAS
 
 
 # -------------------------------
-# UPLOAD MODAL
+# UPLOAD SCREEN
 # -------------------------------
-def upload_modal(selected_table):
-
+def upload_screen(selected_table):
+    
     # -------------------------------
-    # HEADER WITH BACK BUTTON
+    # UI THEME & HEADER
     # -------------------------------
-    col1, col2 = st.columns([2, 10])
-
-    with col1:
-        if st.button("⬅ Back", width="stretch"):
+    inject_minimalist_theme()
+    display_name = selected_table.replace("_", " ").title()
+    action_col = render_header(title=f"Uploading: {display_name}")
+    
+    with action_col:
+        if st.button("⬅️ Back to Dashboard", use_container_width=True):
             st.session_state.page = "dashboard"
             st.rerun()
-
-    with col2:
-        st.markdown("## 📤 Upload CSV")
+            
+    st.divider()
 
     # -------------------------------
     # SAMPLE DOWNLOAD

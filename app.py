@@ -3,25 +3,17 @@ import pandas as pd
 import time
 from datetime import datetime
 from db import fetch_data, insert_dataframe, get_all_filter_values, log_execution_time, TABLE_SCHEMAS, format_column, remove_zero_columns, apply_currency_format
-# from edit import edit_screen (Moved to conditional block)
+from style_utils import inject_minimalist_theme, render_header
 
 # -------------------------------
-# UI SETTINGS (HIDE STREAMLIT HEADER/MENU)
+# UI SETTINGS (MINIMALIST THEME)
 # -------------------------------
 st.set_page_config(
     page_title="Living Liquid Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-hide_st_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            </style>
-            """
-st.markdown(hide_st_style, unsafe_allow_html=True)
+inject_minimalist_theme()
 
 # -------------------------------
 # SESSION STATE
@@ -103,27 +95,26 @@ if st.session_state.page == "edit":
 # UPLOAD PAGE
 # -------------------------------
 if st.session_state.page == "upload":
-    from upload import upload_modal
-    upload_modal(selected_table)
+    from upload import upload_screen
+    upload_screen(selected_table)
     st.stop()
 
 # -------------------------------
-# HEADER
+# HEADER & NAVIGATION (SINGLE ROW)
 # -------------------------------
-col1, col2, col3 = st.columns([7, 2, 2])
+display_name = TABLE_CONFIG[selected_table]["name"]
+col_edit, col_upload = render_header(title=display_name)
 
-with col1:
-    st.markdown(f"## 📊 {selected_display}")
-
-with col2:
-    if st.button("✏️ Edit"):
+with col_edit:
+    if st.button("📝 Edit", use_container_width=True):
         st.session_state.page = "edit"
         st.rerun()
 
-with col3:
-    if st.button("📤 Upload"):
+with col_upload:
+    if st.button("📤 Upload", use_container_width=True):
         st.session_state.page = "upload"
         st.rerun()
+
 
 # -------------------------------
 # LOAD FILTERS + DATA TOGETHER

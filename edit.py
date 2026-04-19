@@ -12,18 +12,11 @@ from db import (
     apply_currency_format,
     clean_dataframe_for_db
 )
+from style_utils import inject_minimalist_theme, render_header
 
 
 @log_execution_time
 def edit_screen(selected_table):
-    c1, c2 = st.columns([1, 6])
-    with c1:
-        if st.button("⬅ Back", key="top_back"):
-            st.session_state.page = "dashboard"
-            st.rerun()
-    with c2:
-        st.markdown("## ✏️ Edit Data (Excel Mode)")
-
     # -------------------------------
     # SESSION STATE INIT
     # -------------------------------
@@ -136,7 +129,20 @@ def edit_screen(selected_table):
         st.warning("No data available")
         return
 
-    st.info("✏️ Edit cells directly")
+    # -------------------------------
+    # UI THEME & HEADER
+    # -------------------------------
+    inject_minimalist_theme()
+    display_name = selected_table.replace("_", " ").title()
+    action_col = render_header(title=f"Editing: {display_name}")
+    
+    with action_col:
+        # Realign the Back button to the header area
+        if st.button("⬅️ Back to Dashboard", use_container_width=True):
+            st.session_state.page = "dashboard"
+            st.rerun()
+
+    st.divider()
 
     # -------------------------------
     # REMOVE SYSTEM COLS
@@ -377,10 +383,3 @@ def edit_screen(selected_table):
 
             except Exception as e:
                 st.error(f"❌ Error: {e}")
-
-    # -------------------------------
-    # BACK BUTTON
-    # -------------------------------
-    if st.button("⬅ Back"):
-        st.session_state.page = "dashboard"
-        st.rerun()
