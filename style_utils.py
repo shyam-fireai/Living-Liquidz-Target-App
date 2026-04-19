@@ -130,11 +130,16 @@ def inject_minimalist_theme():
     """
     st.markdown(premium_css, unsafe_allow_html=True)
 
-def render_header(title="Dashboard"):
+def render_header(title="Dashboard", hide_upload=False):
     """Renders a single-row sticky toolbar at absolute zero-gap top."""
     
-    # Grid layout for the toolbar, slightly larger action cols to avoid text wrapping
-    col_brand, col_spacer, col_edit, col_upload, col_profile = st.columns([3, 3.6, 1.4, 1.4, 0.6], vertical_alignment="center")
+    if hide_upload:
+        # Pushes single action col to far right next to profile
+        col_brand, col_spacer, col_edit, col_profile = st.columns([3, 5, 1.4, 0.6], vertical_alignment="center")
+        col_upload = None
+    else:
+        # Grid layout for the toolbar, slightly larger action cols to avoid text wrapping
+        col_brand, col_spacer, col_edit, col_upload, col_profile = st.columns([3, 3.6, 1.4, 1.4, 0.6], vertical_alignment="center")
     
     with col_brand:
         st.markdown(f"""

@@ -48,8 +48,22 @@ def edit_screen(selected_table):
     if "edit_do_confirm" not in st.session_state:
         st.session_state.edit_do_confirm = False
 
-    # ✅ DYNAMIC CASCADING FILTERS
-    # ✅ SYNC LIVE STATE
+    # -------------------------------
+    # UI THEME & HEADER
+    # -------------------------------
+    inject_minimalist_theme()
+    display_name = selected_table.replace("_", " ").title()
+    col_edit, col_upload = render_header(title=f"Editing: {display_name}", hide_upload=True)
+    
+    with col_edit:
+        # Realign the Back button to the header area
+        if st.button("⬅️ Back", use_container_width=True):
+            st.session_state.page = "dashboard"
+            st.rerun()
+
+    # -------------------------------
+    # DYNAMIC CASCADING FILTERS
+    # -------------------------------
     # At the start of rerun, pull latest widget choices into temp_filters
     TABLE_FILTERS = {
         "branch_wise_monthly_target": ["month", "branch_name", "series_group"],
@@ -117,7 +131,6 @@ def edit_screen(selected_table):
     # The editor now updates instantly based on temp_filters
     with st.spinner("Loading records..."):
         if not st.session_state.edit_temp_filters:
-            st.info("ℹ️ Showing first 200 records. Use filters to narrow down.")
             df = fetch_data(selected_table, limit=200)
         else:
             df = fetch_data(selected_table, filters=st.session_state.edit_temp_filters, limit=200)
@@ -128,21 +141,6 @@ def edit_screen(selected_table):
     if df.empty:
         st.warning("No data available")
         return
-
-    # -------------------------------
-    # UI THEME & HEADER
-    # -------------------------------
-    inject_minimalist_theme()
-    display_name = selected_table.replace("_", " ").title()
-    action_col = render_header(title=f"Editing: {display_name}")
-    
-    with action_col:
-        # Realign the Back button to the header area
-        if st.button("⬅️ Back to Dashboard", use_container_width=True):
-            st.session_state.page = "dashboard"
-            st.rerun()
-
-    st.divider()
 
     # -------------------------------
     # REMOVE SYSTEM COLS
@@ -164,6 +162,10 @@ def edit_screen(selected_table):
     # -------------------------------
     # DATA EDITOR (With Pretty Headers)
     # -------------------------------
+    if not st.session_state.edit_temp_filters:
+        st.info("ℹ️ **Showing first 200 records.** Use filters to narrow down. | 💡 **To save data**, first edit any cell in the table below.")
+    else:
+        st.info("💡 **To save data**, first edit any cell in the table below.")
     # We use column_config to show nice labels while keeping technical names for the code
     editor_config = {col: st.column_config.Column(label=format_column(col)) for col in display_df.columns}
     
@@ -238,10 +240,7 @@ def edit_screen(selected_table):
         # LIVE PREVIEW MODE: Show changes summary automatically if table has changed
         st.warning("⚠️ Pending Changes Detected. Review summary below to Save.")
     elif st.session_state.just_saved:
-        st.info("✅ Your changes were saved successfully. Feel free to continue editing.")
-    else:
-        st.info("ℹ️ To save data, first edit any cell in the table above.")
-
+        st.success("✅ Your changes were saved successfully. Feel free to continue editing.")
     # -------------------------------
     # LIVE PREVIEW
     # -------------------------------

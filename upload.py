@@ -20,10 +20,10 @@ def upload_screen(selected_table):
     # -------------------------------
     inject_minimalist_theme()
     display_name = selected_table.replace("_", " ").title()
-    action_col = render_header(title=f"Uploading: {display_name}")
+    col_edit, col_upload = render_header(title=f"Uploading: {display_name}", hide_upload=True)
     
-    with action_col:
-        if st.button("⬅️ Back to Dashboard", use_container_width=True):
+    with col_edit:
+        if st.button("⬅️ Back", use_container_width=True):
             st.session_state.page = "dashboard"
             st.rerun()
             
@@ -42,12 +42,16 @@ def upload_screen(selected_table):
         file_name=expected_filename
     )
 
-    st.info(f"⚠️ Upload ONLY this file name: `{expected_filename}`")
-    
     if selected_table == "date_branch_wise_target":
-        st.info("💡 **Format Hint:** The 'date' column must use the standard format (e.g., **2026-04-17**).")
+        st.info(f"""
+-  **Upload ONLY this file name:** `{expected_filename}`
+-  **Format Hint:** The 'date' column must use the standard format (e.g., **2026-04-17**).
+""")
     else:
-        st.info("💡 **Format Hint:** The 'month' column must always be the **1st day** of the month (e.g., **2026-03-01**).")
+        st.info(f"""
+-  **Upload ONLY this file name:** `{expected_filename}`
+-  **Format Hint:** The 'month' column must always be the **1st day** of the month (e.g., **2026-03-01**).
+""")
 
     # -------------------------------
     # FILE UPLOAD
