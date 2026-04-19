@@ -132,6 +132,8 @@ def upload_modal(selected_table):
                     if success:
                         st.session_state.upload_done = True
                         st.session_state.upload_msg = msg
+                        # Clear cache to show new data immediately
+                        st.cache_data.clear()
                         st.rerun()
                     else:
                         st.error(f"❌ {msg}")

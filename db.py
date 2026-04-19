@@ -103,7 +103,7 @@ def get_client():
 def fetch_data(table, filters=None, limit=200):
     client = get_client()
 
-    query = f"SELECT * FROM {table}"
+    query = f"SELECT * FROM {table} FINAL"
     conditions = ["is_active = 1"]
 
     if filters:
@@ -145,7 +145,7 @@ def get_filter_index(table):
 
     query = f"""
         SELECT DISTINCT {', '.join(cols)}
-        FROM {table}
+        FROM {table} FINAL
         WHERE is_active = 1
     """
     result = client.query(query)
@@ -191,6 +191,29 @@ def get_all_filter_values(table, current_selections=None):
     return result_dict
 
 
+def clean_dataframe_for_db(df):
+    df = df.copy()
+    # Identify columns that should be strings to avoid numpy numeric type issues
+    string_cols = ["branch_name", "series_group", "item_code", "item_name", "pack_name", "series"]
+    
+    for col in df.columns:
+        if col in string_cols:
+            # Force to string, uppercase, and fill nulls with empty string
+            df[col] = df[col].astype(str).str.upper().replace(["NONE", "NAN", "<NA>"], "")
+        elif df[col].dtype == "object":
+            # For other object types, fill with empty string
+            df[col] = df[col].fillna("")
+        elif any(x in col.lower() for x in ["target", "incentive", "qty"]):
+            # Ensure targets, incentives and quantities are numeric
+            # Clean any ₹ or , symbols if they exist (allows us to save from formatted editor)
+            df[col] = df[col].astype(str).str.replace("₹", "", regex=False).str.replace(",", "", regex=False)
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        else:
+            # For integers and others
+            df[col] = df[col].fillna(0)
+    return df
+
+
 # -------------------------------
 # INSERT DATAFRAME
 # -------------------------------
@@ -198,37 +221,27 @@ def insert_dataframe(table, df):
     try:
         client = get_client()
 
-        df = df.copy()
+        # Apply robust cleaning
+        df = clean_dataframe_for_db(df)
 
-        # Identify columns that should be strings to avoid numpy numeric type issues
-        string_cols = ["branch_name", "series_group", "item_code", "item_name", "pack_name", "series"]
+
+        # DYNAMIC COLUMN DETECTION
+        # Instead of hardcoded schemas, we ask ClickHouse what it actually has
+        desc = client.query(f"DESCRIBE {table}").result_rows
+        db_cols = [row[0] for row in desc]
         
-        for col in df.columns:
-            if col in string_cols:
-                # Force to string, uppercase, and fill nulls with empty string
-                df[col] = df[col].astype(str).str.upper().replace(["NONE", "NAN", "<NA>"], "")
-            elif df[col].dtype == "object":
-                # For other object types, fill with empty string
-                df[col] = df[col].fillna("")
-            elif any(x in col.lower() for x in ["target", "incentive", "qty"]):
-                # Ensure targets, incentives and quantities are numeric
-                # Clean any ₹ or , symbols if they exist (allows us to save from formatted editor)
-                df[col] = df[col].astype(str).str.replace("₹", "", regex=False).str.replace(",", "", regex=False)
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            else:
-                # For integers and others
-                df[col] = df[col].fillna(0)
-
-        now_dt = datetime.now()
-        version_val = int(now_dt.timestamp())
-
-        df["version"] = version_val
-        df["updated_at"] = now_dt
+        # Add system columns and ensure they exist
+        df["version"] = int(time.time() + 1)
+        df["updated_at"] = datetime.now()
         df["is_active"] = 1
+
+        # Keep only columns that exist in BOTH the dataframe and the database
+        final_cols = [c for c in db_cols if c in df.columns]
+        df = df[final_cols]
 
         client.insert_df(table, df)
 
-        return True, f"{len(df)} rows inserted"
+        return True, f"{len(df)} records updated successfully"
 
     except Exception as e:
         return False, str(e)
