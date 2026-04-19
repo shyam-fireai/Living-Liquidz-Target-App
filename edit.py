@@ -167,7 +167,7 @@ def edit_screen(selected_table):
     edited_df = st.data_editor(
         display_df,
         use_container_width=True,
-        num_rows="dynamic",
+        num_rows="fixed",
         column_config=editor_config,
         hide_index=False,
         key=editor_key
@@ -186,17 +186,27 @@ def edit_screen(selected_table):
     base_edit = clean_dataframe_for_db(edited_df.copy())
     
     # Check for value differences ignoring types/formatting
-    has_changed_values = not base_edit.astype(str).equals(base_orig.astype(str))
-    
-    if has_changed_values:
-        # DETECTIVE MODE: Find exactly which cell is triggering the button
-        diff = (base_edit.astype(str) != base_orig.astype(str)).stack()
-        changed_cells = diff[diff]
-        if not changed_cells.empty:
-            print(f"[DEBUG] DETECTED DIFFERENCE: First mismatch at {changed_cells.index[0]}")
-            row_idx, col_name = changed_cells.index[0]
-            print(f"      - Original (Clean): '{base_orig.loc[row_idx, col_name]}'")
-            print(f"      - Edited   (Clean): '{base_edit.loc[row_idx, col_name]}'")
+    # Check for value differences ignoring types/formatting/index-labels
+    has_changed_values = False
+    if base_edit.shape == base_orig.shape:
+        # We compare values directly to ignore index label mismatches
+        has_changed_values = not (base_edit.astype(str).values == base_orig.astype(str).values).all()
+        
+        if has_changed_values:
+            # DETECTIVE MODE: Find exactly which cell is triggering the button
+            # We use a clean re-indexed comparison for the diff tracker
+            idx_edit = base_edit.reset_index(drop=True).astype(str)
+            idx_orig = base_orig.reset_index(drop=True).astype(str)
+            diff = (idx_edit != idx_orig).stack()
+            changed_cells = diff[diff]
+            if not changed_cells.empty:
+                print(f"[DEBUG] DETECTED DIFFERENCE: First mismatch at {changed_cells.index[0]}")
+                row_idx, col_name = changed_cells.index[0]
+                print(f"      - Original (Clean): '{idx_orig.loc[row_idx, col_name]}'")
+                print(f"      - Edited   (Clean): '{idx_edit.loc[row_idx, col_name]}'")
+    else:
+        # Row counts differ (e.g. if rows were deleted, though we disabled adding)
+        has_changed_values = True
 
     has_changed = has_changed_values or (len(edited_df) != len(original_df))
 
