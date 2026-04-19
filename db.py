@@ -137,7 +137,7 @@ def get_filter_index(table):
     client = get_client()
 
     if table == "brand_wise_monthly_target":
-        cols = ["month", "branch_name", "series_group", "item_code", "item_name"]
+        cols = ["month", "branch_name", "series_group", "item_code", "item_name", "pack_name"]
     elif table == "date_branch_wise_target":
         cols = ["date", "branch_name", "series_group"]
     else:

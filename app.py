@@ -35,7 +35,7 @@ TABLE_CONFIG = {
     },
     "brand_wise_monthly_target": {
         "name": "Brand Wise Monthly Target",
-        "filters": ["month", "branch_name", "series_group", "item_code", "item_name"],
+        "filters": ["month", "branch_name", "series_group", "item_code", "item_name", "pack_name"],
         "currency": False
     },
     "date_branch_wise_target": {
