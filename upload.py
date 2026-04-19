@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
-from db import TABLE_SCHEMAS, insert_dataframe, get_client, format_column, remove_zero_columns, apply_currency_format
+from db import TABLE_SCHEMAS, insert_dataframe, get_client, format_column, remove_zero_columns, apply_currency_format, log_audit_action
 from style_utils import inject_minimalist_theme, render_header
 
 # -------------------------------
@@ -136,12 +136,19 @@ def upload_screen(selected_table):
                     success, msg = insert_dataframe(selected_table, df)
 
                     if success:
+                        log_audit_action(
+                            action_type="UPLOAD",
+                            target_table=selected_table,
+                            record_count=len(df),
+                            metadata={"file_name": uploaded_file.name}
+                        )
                         st.session_state.upload_done = True
                         st.session_state.upload_msg = msg
                         # Clear cache to show new data immediately
                         st.cache_data.clear()
                         st.rerun()
                     else:
+                        log_audit_action(action_type="ERROR", target_table=selected_table, error_message=f"DB Insert Failed: {msg}")
                         st.error(f"❌ {msg}")
 
             else:

@@ -322,3 +322,61 @@ def apply_currency_format(df):
         elif "qty" in col.lower():
             df[col] = df[col].apply(lambda x: format_indian_number(x, show_rupee=False))
     return df
+
+# -------------------------------
+# AUDIT LOGGING
+# -------------------------------
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+    import pandas as pd
+    from datetime import date, datetime
+    if isinstance(obj, (datetime, date, pd.Timestamp)):
+        return obj.isoformat()
+    return str(obj)
+
+def log_audit_action(action_type, target_table=None, record_count=0, before_state=None, after_state=None, error_message=None, metadata=None):
+    try:
+        client = get_client()
+        
+        # Assign persistent session ID
+        if "audit_session_id" not in st.session_state:
+            st.session_state.audit_session_id = "Session_" + str(int(time.time() * 1000))
+        
+        user_email = st.session_state.get("user_email", "Anonymous")
+        device_info = "Unknown Device"
+        ip_address = "Unknown IP"
+        
+        # Attempt to grab Streamlit headers for Browser/IP Details safely
+        try:
+            from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
+            ctx = get_script_run_ctx()
+            if ctx and hasattr(ctx, "session_id"):
+                device_info = f"Streamlit_Session:{ctx.session_id}"
+        except Exception:
+            pass
+
+        data = {
+            "session_id": st.session_state.audit_session_id,
+            "user_email": user_email,
+            "action_type": action_type,
+            "target_table": target_table or "",
+            "record_count": int(record_count) if record_count else 0,
+            "before_state": json.dumps(before_state, default=json_serial) if before_state else "",
+            "after_state": json.dumps(after_state, default=json_serial) if after_state else "",
+            "device_info": device_info,
+            "ip_address": ip_address,
+            "error_message": error_message or "",
+            "metadata": json.dumps(metadata, default=json_serial) if metadata else ""
+        }
+        
+        query = """
+            INSERT INTO target_system_audit_logs 
+            (session_id, user_email, action_type, target_table, record_count, before_state, after_state, device_info, ip_address, error_message, metadata)
+            VALUES
+            ({session_id:String}, {user_email:String}, {action_type:String}, {target_table:String}, {record_count:Int32}, {before_state:String}, {after_state:String}, {device_info:String}, {ip_address:String}, {error_message:String}, {metadata:String})
+        """
+        # clickhouse-connect parameterization syntax
+        client.command(query, parameters=data)
+        
+    except Exception as e:
+        print(f"[AUDIT FAILED] logging error: {str(e)}")

@@ -10,7 +10,8 @@ from db import (
     format_sql_values,
     format_column,
     apply_currency_format,
-    clean_dataframe_for_db
+    clean_dataframe_for_db,
+    log_audit_action
 )
 from style_utils import inject_minimalist_theme, render_header
 
@@ -248,6 +249,13 @@ def edit_screen(selected_table):
         
         # Robust diff detection using string versions
         conf_df = edited_df.copy()
+        
+        # Enforce exact label parity to prevent Pandas ValueError on strict comparisons
+        # Streamlit sometimes returns slightly modified internal index types (Int64 vs RangeIndex)
+        if conf_df.shape == original_df.shape:
+            conf_df.index = original_df.index
+            conf_df.columns = original_df.columns
+            
         diff_mask = (conf_df.astype(str) != original_df.astype(str))
         
         # Filter rows that have at least one change
@@ -288,6 +296,11 @@ def edit_screen(selected_table):
                 # -------------------------------
                 # Use the live edited_df directly from the data_editor
                 edited_df_full = edited_df.copy()
+                
+                # Prevent Pandas ValueError by strictly aligning the dynamically returned frame
+                if edited_df_full.shape == original_df.shape:
+                    edited_df_full.index = original_df.index
+                    edited_df_full.columns = original_df.columns
                 
                 diff_mask = (edited_df_full.astype(str) != original_df.astype(str)).any(axis=1)
                 rows_to_update = edited_df_full[diff_mask]
@@ -354,6 +367,17 @@ def edit_screen(selected_table):
                 success, msg = insert_dataframe(selected_table, rows_to_update)
 
                 if success:
+                    # AUDIT LOG: Capture the explicit before/after states
+                    before_dict = original_rows.to_dict(orient="records")
+                    after_dict = rows_to_update.to_dict(orient="records")
+                    log_audit_action(
+                        action_type="EDIT",
+                        target_table=selected_table,
+                        record_count=len(rows_to_update),
+                        before_state=before_dict,
+                        after_state=after_dict
+                    )
+                    
                     st.success(f"✅ {msg}")
 
                     # TOTAL STATE WIPE: This ensures the UI resets to a clean slate
@@ -378,7 +402,9 @@ def edit_screen(selected_table):
                     st.rerun()
 
                 else:
+                    log_audit_action("ERROR", target_table=selected_table, error_message=f"DB Update Failed: {msg}")
                     st.error(msg)
 
             except Exception as e:
+                log_audit_action("ERROR", target_table=selected_table, error_message=f"Edit UI Crash: {str(e)}")
                 st.error(f"❌ Error: {e}")
