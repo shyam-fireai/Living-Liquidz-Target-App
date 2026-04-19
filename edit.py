@@ -408,3 +408,6 @@ def edit_screen(selected_table):
             except Exception as e:
                 log_audit_action("ERROR", target_table=selected_table, error_message=f"Edit UI Crash: {str(e)}")
                 st.error(f"❌ Error: {e}")
+
+    # Enforce a bottom margin so the UI never hugs the absolute edge of the screen
+    st.write("<br><br><br>", unsafe_allow_html=True)
