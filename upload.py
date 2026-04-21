@@ -124,7 +124,7 @@ def upload_screen(selected_table):
                 preview_df = apply_currency_format(preview_df)
                 
             preview_df = preview_df.rename(columns=format_column)
-            st.dataframe(preview_df, width="stretch")
+            st.dataframe(preview_df, use_container_width=True)
 
             # -------------------------------
             # SESSION STATE INIT

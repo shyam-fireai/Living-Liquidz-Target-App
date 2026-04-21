@@ -122,7 +122,85 @@ def inject_minimalist_theme():
             padding: 0 !important;
         }
 
-        /* 5. SIDEBAR ALIGNMENT */
+        /* 5. RESPONSIVENESS ENGINE (Media Queries) */
+        
+        /* Tablet & Mobile Tweaks */
+        @media (max-width: 1024px) {
+            .block-container {
+                padding-left: 2rem !important;
+                padding-right: 2rem !important;
+            }
+            [data-testid="stVerticalBlock"] > div:has(h2) {
+                padding: 1rem 20px !important;
+            }
+        }
+
+        /* Mobile Specific (< 768px) */
+        @media (max-width: 768px) {
+            /* 1. Nuke the huge sidebar spacing */
+            [data-testid="stSidebar"] {
+                width: 100% !important;
+            }
+
+            /* 2. Compact Sticky Header */
+            [data-testid="stVerticalBlock"] > div:has(h2) {
+                padding: 0.5rem 10px !important;
+                margin-bottom: 1rem !important;
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 5px !important;
+            }
+
+            /* 3. Typography Scaling */
+            h2 {
+                font-size: 1rem !important;
+            }
+
+            /* 4. Column Stacking Fixes */
+            /* Ensure buttons don't have massive gaps when Streamlit stacks them */
+            [data-testid="column"] {
+                width: 100% !important;
+                flex: 1 1 100% !important;
+                min-width: 100% !important;
+                margin-bottom: 0.5rem !important;
+            }
+
+            /* Hide Spacers on Mobile to save vertical space */
+            [data-testid="column"]:has(div[style*="height: 0px"]) {
+                display: none !important;
+            }
+            
+            /* Target columns that contain no visible Streamlit elements (spacers) */
+            [data-testid="column"]:empty {
+                display: none !important;
+            }
+
+            /* 5. Make buttons feel better on touch */
+            div.stButton > button {
+                width: 100% !important;
+                height: 48px !important; /* Larger touch target */
+                font-size: 1rem !important;
+            }
+
+            /* 6. Profile Button Alignment on Mobile */
+            [data-testid="stPopover"] {
+                width: 100% !important;
+            }
+            [data-testid="stPopover"] button {
+                width: 100% !important;
+                border-radius: 8px !important; /* Rectangular on mobile for better touch */
+                justify-content: flex-start !important;
+                padding-left: 15px !important;
+            }
+            [data-testid="stPopover"] button::after {
+                content: "  Account Settings";
+                font-size: 0.9rem;
+                font-weight: 500;
+                margin-left: 10px;
+            }
+        }
+
+        /* 6. SIDEBAR ALIGNMENT */
         [data-testid="stSidebar"] {
             background-color: #F8FAFC !important;
             border-right: 1px solid #E2E8F0 !important;
