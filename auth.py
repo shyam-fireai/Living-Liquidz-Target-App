@@ -196,41 +196,45 @@ def require_login():
     # 4. Check for Sentinel Switch (The Master Switch)
     session_active = all_cookies.get("auth_session_active")
     
-    if session_active != "1" and not st.session_state.get("authenticated"):
+    # Special: On the very first SUCCESSFUL auth frame after a reload/login, 
+    # we don't want to block. We proceed.
+    is_authenticated = st.session_state.get("authenticated", False)
+
+    if session_active != "1" and not is_authenticated:
         # We only show the login page if we have truly waited and NO session was found.
         show_login_page()
         return False
 
-    # Reset wait count if we found something or are authenticated
-    st.session_state.cookie_wait_count = 0
-
     # 5. Fallback to Cookies (Only because Sentinel is active)
-    saved_token = all_cookies.get("auth_token")
-    saved_user = all_cookies.get("auth_user")
-    
-    if saved_token and saved_user:
-        # Check for invalid/expired tokens (Nuclear Strategy leftovers)
-        if saved_token in [None, "", "__EXPIRED__", "None"] or len(saved_token) < 16:
-            logger.info("Invalid or expired session token detected. Clearing...")
-            cookie_manager.delete("auth_token", key="cleanup_token")
-            st.session_state.authenticated = False
-            show_login_page()
-            return False
-
-        # Valid cookie found, restore session
-        logger.info(f"Restoring session from cookies for user: {saved_user}")
-        st.session_state.authenticated = True
-        st.session_state.username = saved_user
-        st.session_state.user_email = saved_user
-        st.session_state.session_token = saved_token
+    if not is_authenticated:
+        saved_token = all_cookies.get("auth_token")
+        saved_user = all_cookies.get("auth_user")
         
-        saved_profile = all_cookies.get("auth_profile")
-        if saved_profile:
-            try:
-                st.session_state.auth_profile = json.loads(saved_profile)
-            except:
-                pass
+        if saved_token and saved_user:
+            logger.info(f"Restoring session from cookies for user: {saved_user}")
+            st.session_state.authenticated = True
+            st.session_state.username = saved_user
+            st.session_state.user_email = saved_user
+            st.session_state.session_token = saved_token
+            
+            saved_profile = all_cookies.get("auth_profile")
+            if saved_profile:
+                try:
+                    st.session_state.auth_profile = json.loads(saved_profile)
+                except:
+                    pass
+            # Reset wait count
+            st.session_state.cookie_wait_count = 0
+            return True
+
+    # Reset wait count if we are already authenticated
+    if is_authenticated:
+        st.session_state.cookie_wait_count = 0
         return True
+
+    # 6. Completely unauthenticated
+    show_login_page()
+    return False
 
     # 5. Completely unauthenticated
     show_login_page()

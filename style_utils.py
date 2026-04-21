@@ -16,9 +16,20 @@ def inject_minimalist_theme():
             background-color: #FFFFFF !important;
         }
 
-        /* 1. NUKE THE TOP WHITE SPACE COMPLETELY */
-        header[data-testid="stHeader"], [data-testid="stDecoration"] {
+        /* 1. NUKE THE TOP WHITE SPACE BUT KEEP TOGGLE BUTTON */
+        header[data-testid="stHeader"] {
+            background-color: rgba(255, 255, 255, 0) !important;
+            color: #1e293b !important;
+        }
+        
+        [data-testid="stDecoration"] {
             display: none !important;
+        }
+        
+        /* Ensure the sidebar toggle button is visible and matches our theme */
+        [data-testid="stHeader"] button {
+            color: #1e293b !important;
+            background-color: transparent !important;
         }
 
         /* Target the Main Block Container to eliminate the huge default Streamlit gap */
@@ -226,9 +237,37 @@ def render_header(title="Dashboard", hide_upload=False):
     
     with col_brand:
         st.markdown(f"""
-            <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <button 
+                    onclick="window.parent.document.querySelector('button[aria-label=\\'Open sidebar\\'], button[data-testid=\\'stSidebarCollapseButton\\']').click();"
+                    style="
+                        background: none; 
+                        border: none; 
+                        cursor: pointer; 
+                        font-size: 1.2rem; 
+                        padding: 0; 
+                        margin: 0; 
+                        display: flex; 
+                        align-items: center;
+                        color: #1e293b;
+                    "
+                    class="mobile-menu-btn"
+                >
+                    ☰
+                </button>
                 <h2 style="margin: 0; font-size: 1.2rem; font-weight: 600; color: #1e293b; white-space: nowrap; border: none !important;">{title}</h2>
             </div>
+            <style>
+                /* Hide the custom menu button on Desktop, only show on Mobile/Tablet */
+                .mobile-menu-btn {{
+                    display: none !important;
+                }}
+                @media (max-width: 1024px) {{
+                    .mobile-menu-btn {{
+                        display: flex !important;
+                    }}
+                }}
+            </style>
         """, unsafe_allow_html=True)
         
     with col_profile:

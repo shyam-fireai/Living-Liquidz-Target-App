@@ -183,10 +183,12 @@ with st.spinner("Loading dashboard..."):
     # -------------------------------
     # FETCH DATA (LIVE)
     # -------------------------------
-    # The dashboard now updates instantly based on temp_filters
-    if st.session_state.temp_filters:
-        logger.info(f"Fetching filtered data for {selected_table}: {st.session_state.temp_filters}")
-        df = fetch_data(selected_table, filters=st.session_state.temp_filters, limit=200)
+    # Only use filters if they actually contain selections (avoids empty results on first load)
+    active_filters = {k: v for k, v in st.session_state.temp_filters.items() if v}
+    
+    if active_filters:
+        logger.info(f"Fetching filtered data for {selected_table}: {active_filters}")
+        df = fetch_data(selected_table, filters=active_filters, limit=200)
     else:
         logger.info(f"Fetching default data for {selected_table}")
         df = fetch_data(selected_table, limit=200)
