@@ -1,4 +1,7 @@
 import streamlit as st
+import logging
+
+logger = logging.getLogger(__name__)
 
 def inject_minimalist_theme():
     """Injects high-quality CSS for an Absolute Top Toolbar style."""
@@ -128,10 +131,12 @@ def inject_minimalist_theme():
         footer {visibility: hidden !important;}
     </style>
     """
+    logger.info("Injecting minimalist premium theme CSS...")
     st.markdown(premium_css, unsafe_allow_html=True)
 
 def render_header(title="Dashboard", hide_upload=False):
     """Renders a single-row sticky toolbar at absolute zero-gap top."""
+    logger.info(f"Rendering header toolbar for: {title}")
     
     if hide_upload:
         # Pushes single action col to far right next to profile
@@ -150,10 +155,23 @@ def render_header(title="Dashboard", hide_upload=False):
         
     with col_profile:
         with st.popover("👤"):
-            st.markdown("**Admin User**")
-            st.caption("admin@livingliquid.com")
+            from auth import get_cookie_manager, logout
+            
+            user_name = st.session_state.get("username", "Admin User")
+            user_email = st.session_state.get("user_email", "admin@livingliquid.com")
+            
+            # Show actual user details if we have profile data
+            if "auth_profile" in st.session_state:
+                p = st.session_state.auth_profile
+                user_name = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip() or user_name
+            
+            st.markdown(f"**{user_name}**")
+            st.caption(user_email)
             st.divider()
-            if st.button("Logout"):
-                st.info("Logging out...")
+            
+            if st.button("Logout", use_container_width=True):
+                logger.info("Logout button clicked in profile popover.")
+                cm = get_cookie_manager()
+                logout(cm)
 
     return col_edit, col_upload

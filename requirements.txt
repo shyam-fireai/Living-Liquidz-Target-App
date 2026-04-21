@@ -7,3 +7,4 @@ clickhouse-connect
 sqlalchemy          
 psycopg2-binary     
 pyodbc              
+extra_streamlit_components

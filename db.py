@@ -5,6 +5,9 @@ from datetime import datetime
 import streamlit as st
 import time
 import functools
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # -------------------------------
@@ -78,21 +81,26 @@ TABLE_SCHEMAS = {
 @log_execution_time
 @st.cache_resource
 def get_client():
-    with open('secrets.json', 'r') as f:
-        creds = json.load(f)
-
-    conf = creds['data_clickhouse']
-
-    return clickhouse_connect.get_client(
-        host=conf['host'],
-        port=conf['port'],
-        username=conf['username'],
-        password=conf['password'],
-        database=conf['database'],
-        secure=True,
-        connect_timeout=30,
-        send_receive_timeout=60
-    )
+    logger.info("Initializing ClickHouse client...")
+    try:
+        with open('secrets.json', 'r') as f:
+            creds = json.load(f)
+        conf = creds['data_clickhouse']
+        client = clickhouse_connect.get_client(
+            host=conf['host'],
+            port=conf['port'],
+            username=conf['username'],
+            password=conf['password'],
+            database=conf['database'],
+            secure=True,
+            connect_timeout=30,
+            send_receive_timeout=60
+        )
+        logger.info(f"ClickHouse client connected successfully to {conf['host']}")
+        return client
+    except Exception as e:
+        logger.error(f"Failed to initialize ClickHouse client: {e}")
+        raise e
 
 
 # -------------------------------
@@ -122,9 +130,15 @@ def fetch_data(table, filters=None, limit=200):
     query += f" LIMIT {limit}"
     query += " SETTINGS max_execution_time=60"
 
-    result = client.query(query)
-
-    return pd.DataFrame(result.result_rows, columns=result.column_names)
+    try:
+        logger.info(f"Fetching data from table: {table} (Limit: {limit})")
+        result = client.query(query)
+        df_result = pd.DataFrame(result.result_rows, columns=result.column_names)
+        logger.info(f"Successfully fetched {len(df_result)} rows from {table}")
+        return df_result
+    except Exception as e:
+        logger.error(f"Error fetching data from {table}: {e}")
+        return pd.DataFrame()
 
 
 # -------------------------------
@@ -148,8 +162,15 @@ def get_filter_index(table):
         FROM {table} FINAL
         WHERE is_active = 1
     """
-    result = client.query(query)
-    return pd.DataFrame(result.result_rows, columns=result.column_names)
+    try:
+        logger.info(f"Fetching filter index for table: {table} (Columns: {cols})")
+        result = client.query(query)
+        df_index = pd.DataFrame(result.result_rows, columns=result.column_names)
+        logger.info(f"Filter index loaded: {len(df_index)} unique combinations for {table}")
+        return df_index
+    except Exception as e:
+        logger.error(f"Error fetching filter index for {table}: {e}")
+        return pd.DataFrame()
 
 
 def get_all_filter_values(table, current_selections=None):
@@ -161,6 +182,7 @@ def get_all_filter_values(table, current_selections=None):
     cols = index_df.columns.tolist()
     result_dict = {}
 
+    logger.info(f"Calculating cascading filter values for {table}...")
     for target_col in cols:
         # Build mask for ALL OTHER columns
         mask = pd.Series(True, index=index_df.index)
@@ -188,6 +210,7 @@ def get_all_filter_values(table, current_selections=None):
         unique_vals = index_df.loc[mask, target_col].unique().tolist()
         result_dict[target_col] = sorted([v for v in unique_vals if v is not None])
 
+    logger.info(f"Filters calculated successfully for {table}")
     return result_dict
 
 
@@ -217,16 +240,16 @@ def clean_dataframe_for_db(df):
 # -------------------------------
 # INSERT DATAFRAME
 # -------------------------------
+@log_execution_time
 def insert_dataframe(table, df):
+    logger.info(f"Starting dataframe insertion/update for table: {table} ({len(df)} records)")
     try:
         client = get_client()
 
         # Apply robust cleaning
         df = clean_dataframe_for_db(df)
 
-
         # DYNAMIC COLUMN DETECTION
-        # Instead of hardcoded schemas, we ask ClickHouse what it actually has
         desc = client.query(f"DESCRIBE {table}").result_rows
         db_cols = [row[0] for row in desc]
         
@@ -239,11 +262,14 @@ def insert_dataframe(table, df):
         final_cols = [c for c in db_cols if c in df.columns]
         df = df[final_cols]
 
+        logger.info(f"Inserting into {table} with columns: {final_cols}")
         client.insert_df(table, df)
-
+        
+        logger.info(f"Successfully inserted {len(df)} records into {table}")
         return True, f"{len(df)} records updated successfully"
 
     except Exception as e:
+        logger.error(f"Failed to insert dataframe into {table}: {e}")
         return False, str(e)
 
 
@@ -335,6 +361,7 @@ def json_serial(obj):
     return str(obj)
 
 def log_audit_action(action_type, target_table=None, record_count=0, before_state=None, after_state=None, error_message=None, metadata=None):
+    logger.info(f"Recording Audit Action: {action_type} for {target_table or 'Global'}")
     try:
         client = get_client()
         
@@ -377,6 +404,7 @@ def log_audit_action(action_type, target_table=None, record_count=0, before_stat
         """
         # clickhouse-connect parameterization syntax
         client.command(query, parameters=data)
+        logger.info(f"Audit log entry created for {action_type}")
         
     except Exception as e:
-        print(f"[AUDIT FAILED] logging error: {str(e)}")
+        logger.error(f"AUDIT LOG FAILED: {str(e)}")

@@ -3,6 +3,9 @@ import pandas as pd
 import io
 from db import TABLE_SCHEMAS, insert_dataframe, get_client, format_column, remove_zero_columns, apply_currency_format, log_audit_action
 from style_utils import inject_minimalist_theme, render_header
+import logging
+
+logger = logging.getLogger(__name__)
 
 # -------------------------------
 # REQUIRED SCHEMA (REPLACED BY db.TABLE_SCHEMAS)
@@ -59,8 +62,10 @@ def upload_screen(selected_table):
     uploaded_file = st.file_uploader("Upload CSV", type=["csv"], key=f"uploader_{selected_table}")
 
     if uploaded_file is not None:
+        logger.info(f"File uploaded: {uploaded_file.name} for table: {selected_table}")
 
         if uploaded_file.name != expected_filename:
+            logger.warning(f"File Rejected: Name mismatch. Expected {expected_filename}, got {uploaded_file.name}")
             st.error("❌ Invalid file! Please upload the downloaded sample file only.")
             return
 
@@ -70,13 +75,13 @@ def upload_screen(selected_table):
 
             required_cols = REQUIRED_COLUMNS[selected_table]
 
-            # -------------------------------
-            # VALIDATION
-            # -------------------------------
+            logger.info("Verifying column schema...")
             missing = [col for col in required_cols if col not in df.columns]
             if missing:
+                logger.error(f"Validation Failed: Missing columns {missing}")
                 st.error(f"❌ Missing columns: {missing}")
                 return
+            logger.info("Column validation successful.")
 
             # -------------------------------
             # DATE CONVERSION
@@ -132,10 +137,11 @@ def upload_screen(selected_table):
             # -------------------------------
             if not st.session_state.upload_done:
                 if st.button("🚀 Confirm Upload"):
-
+                    logger.info(f"Initiating database insert for {len(df)} records into {selected_table}...")
                     success, msg = insert_dataframe(selected_table, df)
 
                     if success:
+                        logger.info(f"Upload Complete: {msg}")
                         log_audit_action(
                             action_type="UPLOAD",
                             target_table=selected_table,
@@ -148,6 +154,7 @@ def upload_screen(selected_table):
                         st.cache_data.clear()
                         st.rerun()
                     else:
+                        logger.error(f"Upload Failed: {msg}")
                         log_audit_action(action_type="ERROR", target_table=selected_table, error_message=f"DB Insert Failed: {msg}")
                         st.error(f"❌ {msg}")
 

@@ -4,6 +4,11 @@ import time
 from datetime import datetime
 from db import fetch_data, insert_dataframe, get_all_filter_values, log_execution_time, TABLE_SCHEMAS, format_column, remove_zero_columns, apply_currency_format
 from style_utils import inject_minimalist_theme, render_header
+import logging
+
+# Initialize logger for app.py
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # -------------------------------
 # UI SETTINGS (MINIMALIST THEME)
@@ -13,6 +18,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+from auth import require_login
+require_login()
+
 inject_minimalist_theme()
 
 # -------------------------------
@@ -78,6 +87,7 @@ selected_table = table_keys[table_display.index(selected_display)]
 
 # RESET FILTERS ON TABLE SWITCH
 if st.session_state.current_table != selected_table:
+    logger.info(f"Switching table to: {selected_table}")
     st.session_state.applied_filters = {}
     st.session_state.upload_done = False
     st.session_state.upload_msg = ""
@@ -175,11 +185,14 @@ with st.spinner("Loading dashboard..."):
     # -------------------------------
     # The dashboard now updates instantly based on temp_filters
     if st.session_state.temp_filters:
+        logger.info(f"Fetching filtered data for {selected_table}: {st.session_state.temp_filters}")
         df = fetch_data(selected_table, filters=st.session_state.temp_filters, limit=200)
     else:
+        logger.info(f"Fetching default data for {selected_table}")
         df = fetch_data(selected_table, limit=200)
     
     _dash_end = time.perf_counter()
+    logger.info(f"Dashboard data loading block took {_dash_end - _dash_start:.4f} seconds")
     print(f"[LOG] Dashboard data loading block took {_dash_end - _dash_start:.4f} seconds")
 
 # (Month derivation removed as requested)

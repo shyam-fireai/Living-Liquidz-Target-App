@@ -14,6 +14,9 @@ from db import (
     log_audit_action
 )
 from style_utils import inject_minimalist_theme, render_header
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @log_execution_time
@@ -79,6 +82,7 @@ def edit_screen(selected_table):
             new_val = st.session_state[w_key]
             # If any filter changes, we must reset the baseline and any pending confirmations
             if st.session_state.edit_temp_filters.get(col) != new_val:
+                logger.info(f"Edit Filter Change detected: {col} -> {new_val}")
                 st.session_state.edit_temp_filters[col] = new_val
                 st.session_state.edit_original_df = None
                 st.session_state.edit_confirmed_df = None
@@ -132,8 +136,10 @@ def edit_screen(selected_table):
     # The editor now updates instantly based on temp_filters
     with st.spinner("Loading records..."):
         if not st.session_state.edit_temp_filters:
+            logger.info(f"Loading top 200 records for editing in {selected_table}")
             df = fetch_data(selected_table, limit=200)
         else:
+            logger.info(f"Loading filtered records for editing in {selected_table}: {st.session_state.edit_temp_filters}")
             df = fetch_data(selected_table, filters=st.session_state.edit_temp_filters, limit=200)
     
     # Update applied_filters for Save logic
@@ -209,12 +215,12 @@ def edit_screen(selected_table):
             diff = (idx_edit != idx_orig).stack()
             changed_cells = diff[diff]
             if not changed_cells.empty:
-                print(f"[DEBUG] DETECTED DIFFERENCE: First mismatch at {changed_cells.index[0]}")
-                row_idx, col_name = changed_cells.index[0]
-                print(f"      - Original (Clean): '{idx_orig.loc[row_idx, col_name]}'")
-                print(f"      - Edited   (Clean): '{idx_edit.loc[row_idx, col_name]}'")
+                info_msg = f"Change detected at {changed_cells.index[0]}: '{idx_orig.loc[changed_cells.index[0]]}' -> '{idx_edit.loc[changed_cells.index[0]]}'"
+                logger.info(info_msg)
+                print(f"[DEBUG] DETECTED DIFFERENCE: {info_msg}")
     else:
         # Row counts differ (e.g. if rows were deleted, though we disabled adding)
+        logger.info(f"Record count changed: {len(base_edit)} vs {len(base_orig)}")
         has_changed_values = True
 
     has_changed = has_changed_values or (len(edited_df) != len(original_df))
@@ -279,6 +285,7 @@ def edit_screen(selected_table):
     # -------------------------------
     if has_changed and not st.session_state.just_saved:
         if st.button("💾 Final Save", use_container_width=True, type="primary"):
+            logger.info(f"Final Save clicked for {selected_table}")
 
             try:
                 MAX_ROWS = 200
@@ -360,10 +367,11 @@ def edit_screen(selected_table):
                     # Execute deactivation in batches if needed, but here simple for short lists
                     kill_condition = f"({', '.join(curr_keys)}) IN ({', '.join(keys_to_kill)})"
                     kill_query = f"ALTER TABLE {selected_table} UPDATE is_active = 0 WHERE {kill_condition}"
-                    print(f"[DEBUG] Identity Change. Deactivating: {kill_query}")
+                    logger.warning(f"Identity Change Detected! Deactivating old keys: {kill_condition}")
                     execute_query(kill_query)
 
                 # Now insert the new records (they will have new keys or same keys with higher version)
+                logger.info(f"Committing {len(rows_to_update)} modified records...")
                 success, msg = insert_dataframe(selected_table, rows_to_update)
 
                 if success:
