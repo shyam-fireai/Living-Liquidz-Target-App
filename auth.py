@@ -107,77 +107,114 @@ def show_login_page():
     
     st.markdown("""
         <style>
-        /* 1. Remove Streamlit's default top gap on Login Page */
-        [data-testid="stHeader"] { display: none !important; }
-        .block-container { padding-top: 2rem !important; margin-top: 0 !important; }
+        /* 1. Global Centering Reset */
+        [data-testid="stAppViewContainer"] {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 100vh !important;
+            overflow: hidden !important;
+        }
+
+        .main {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 100vh !important;
+            width: 100% !important;
+            overflow: hidden !important;
+        }
+
+        .block-container {
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 450px !important;
+            display: block !important;
+        }
+
+        /* 2. Remove Scrollbars and Chrome */
+        * {
+            -ms-overflow-style: none !important;
+            scrollbar-width: none !important;
+        }
+        *::-webkit-scrollbar {
+            display: none !important;
+        }
+        [data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSidebarNav"], [data-testid="stBottom"] {
+            display: none !important;
+        }
         
-        /* 2. Style Buttons */
-        .stButton>button { width: 100%; border-radius: 6px; }
+        /* 3. Button Polish */
+        .stButton>button { 
+            width: 100%; 
+            border-radius: 8px;
+            height: 3rem;
+            font-weight: 600;
+        }
         </style>
     """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
 
-    
-    with col2:
-        st.title("Secure Login")
-        st.markdown("Enter your credentials to access the Dashboard.")
-        st.divider()
+    # Clean, Centered Content
+    st.title("Secure Login")
+    st.markdown("Enter your credentials to access the Dashboard.")
+    st.divider()
 
-        with st.form("login_form"):
-            username_or_email = st.text_input("Company Email", placeholder="Enter your email")
-            password = st.text_input("Password", type="password", placeholder="Enter your password")
-            submitted = st.form_submit_button("Login", type="primary")
+    with st.form("login_form"):
+        username_or_email = st.text_input("Company Email", placeholder="Enter your email")
+        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        submitted = st.form_submit_button("Login", type="primary")
 
-            if submitted:
-                st.info("Authenticating...")
-                success, response_data = auth_service.login(username_or_email, password)
+        if submitted:
+            st.info("Authenticating...")
+            success, response_data = auth_service.login(username_or_email, password)
+            
+            if success:
+                log_to_audit("LOGIN")
+                token = _generate_session_token(username_or_email)
                 
-                if success:
-                    log_to_audit("LOGIN")
-                    token = _generate_session_token(username_or_email)
-                    
-                    user_data = response_data.get("user", {})
-                    profile = {
-                        "profile_image_url": user_data.get("profile_image_url"),
-                        "first_name": user_data.get("first_name"),
-                        "last_name": user_data.get("last_name"),
-                        "id": user_data.get("id"),
-                        "access_token": response_data.get("access_token"),
-                        "refresh_token": response_data.get("refresh_token")
-                    }
-                    # 4. Store in session state (Fast path access)
-                    st.session_state.authenticated = True
-                    st.session_state.username = username_or_email
-                    st.session_state.user_email = username_or_email
-                    st.session_state.session_token = token
-                    st.session_state.auth_profile = profile
-                    
-                    # 4b. CLEAR the Hard Logout Lock (Unlock the door)
-                    st.session_state.logout_triggered = False
-                    if "logout_audited" in st.session_state:
-                         del st.session_state.logout_audited
+                user_data = response_data.get("user", {})
+                profile = {
+                    "profile_image_url": user_data.get("profile_image_url"),
+                    "first_name": user_data.get("first_name"),
+                    "last_name": user_data.get("last_name"),
+                    "id": user_data.get("id"),
+                    "access_token": response_data.get("access_token"),
+                    "refresh_token": response_data.get("refresh_token")
+                }
+                # 4. Store in session state (Fast path access)
+                st.session_state.authenticated = True
+                st.session_state.username = username_or_email
+                st.session_state.user_email = username_or_email
+                st.session_state.session_token = token
+                st.session_state.auth_profile = profile
+                
+                # 4b. CLEAR the Hard Logout Lock (Unlock the door)
+                st.session_state.logout_triggered = False
+                if "logout_audited" in st.session_state:
+                     del st.session_state.logout_audited
 
-                    # 5. Set cookies (1-Hour Secure Persistence)
-                    # This ensures the session handles Ctrl+R but stays secure
-                    expiry = datetime.datetime.now() + datetime.timedelta(hours=1)
-                    
-                    cookie_manager.set("auth_token", token, key="set_at", expires_at=expiry)
-                    cookie_manager.set("auth_user", username_or_email, key="set_au", expires_at=expiry)
-                    cookie_manager.set("auth_profile", json.dumps(profile), key="set_ap", expires_at=expiry)
-                    
-                    # Set the Sentinel Switch
-                    cookie_manager.set("auth_session_active", "1", key="set_asa", expires_at=expiry)
+                # 5. Set cookies (1-Hour Secure Persistence)
+                # This ensures the session handles Ctrl+R but stays secure
+                expiry = datetime.datetime.now() + datetime.timedelta(hours=1)
+                
+                cookie_manager.set("auth_token", token, key="set_at", expires_at=expiry)
+                cookie_manager.set("auth_user", username_or_email, key="set_au", expires_at=expiry)
+                cookie_manager.set("auth_profile", json.dumps(profile), key="set_ap", expires_at=expiry)
+                
+                # Set the Sentinel Switch
+                cookie_manager.set("auth_session_active", "1", key="set_asa", expires_at=expiry)
 
-                    logger.info(f"User {username_or_email} logged in successfully with 1-hr expiry.")
-                    # Force a cache clear to ensure the first dashboard load is live and correct
-                    st.cache_data.clear()
-                    st.rerun()
-                else:
-                    logger.warning(f"Login failed for {username_or_email}: {response_data}")
-                    st.error(f"🔒 {response_data}")
+                logger.info(f"User {username_or_email} logged in successfully with 1-hr expiry.")
+                # Force a cache clear to ensure the first dashboard load is live and correct
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                logger.warning(f"Login failed for {username_or_email}: {response_data}")
+                st.error(f"🔒 {response_data}")
 
     st.stop()
+
+
 
 
 def require_login():
