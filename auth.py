@@ -8,6 +8,7 @@ import base64
 import time
 import datetime
 import json
+import urllib.parse
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -106,11 +107,17 @@ def show_login_page():
     
     st.markdown("""
         <style>
+        /* 1. Remove Streamlit's default top gap on Login Page */
+        [data-testid="stHeader"] { display: none !important; }
+        .block-container { padding-top: 2rem !important; margin-top: 0 !important; }
+        
+        /* 2. Style Buttons */
         .stButton>button { width: 100%; border-radius: 6px; }
         </style>
     """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
+
     
     with col2:
         st.title("Secure Login")
@@ -139,23 +146,30 @@ def show_login_page():
                         "access_token": response_data.get("access_token"),
                         "refresh_token": response_data.get("refresh_token")
                     }
-                    
-                    # Store in session state
+                    # 4. Store in session state (Fast path access)
                     st.session_state.authenticated = True
                     st.session_state.username = username_or_email
                     st.session_state.user_email = username_or_email
                     st.session_state.session_token = token
                     st.session_state.auth_profile = profile
                     
-                    # Set cookies (Session-Only Mode: these expire when the browser is closed)
-                    cookie_manager.set("auth_token", token, key="set_at")
-                    cookie_manager.set("auth_user", username_or_email, key="set_au")
-                    cookie_manager.set("auth_profile", json.dumps(profile), key="set_ap")
+                    # 4b. CLEAR the Hard Logout Lock (Unlock the door)
+                    st.session_state.logout_triggered = False
+                    if "logout_audited" in st.session_state:
+                         del st.session_state.logout_audited
+
+                    # 5. Set cookies (1-Hour Secure Persistence)
+                    # This ensures the session handles Ctrl+R but stays secure
+                    expiry = datetime.datetime.now() + datetime.timedelta(hours=1)
+                    
+                    cookie_manager.set("auth_token", token, key="set_at", expires_at=expiry)
+                    cookie_manager.set("auth_user", username_or_email, key="set_au", expires_at=expiry)
+                    cookie_manager.set("auth_profile", json.dumps(profile), key="set_ap", expires_at=expiry)
                     
                     # Set the Sentinel Switch
-                    cookie_manager.set("auth_session_active", "1", key="set_asa")
+                    cookie_manager.set("auth_session_active", "1", key="set_asa", expires_at=expiry)
 
-                    logger.info(f"User {username_or_email} logged in successfully.")
+                    logger.info(f"User {username_or_email} logged in successfully with 1-hr expiry.")
                     # Force a cache clear to ensure the first dashboard load is live and correct
                     st.cache_data.clear()
                     st.rerun()
@@ -165,79 +179,99 @@ def show_login_page():
 
     st.stop()
 
+
 def require_login():
     cookie_manager = get_cookie_manager()
     
-    # 1. Handle Logout Trigger (Immediate server-side lockout)
-    if st.session_state.get("logout_triggered"):
-        logger.info("Logout triggered: Clearing session flags.")
+    # 0. Synchronous Header Check (Frame 0 Fast-Check)
+    ctx_cookies = st.context.cookies
+    
+    # 1. PRIORITY 1: Logout/Purge Guard (MUST OVERRIDE EVERYTHING)
+    # Check for both Session state AND the "Hard Purge" cookie from the browser
+    logout_in_progress = st.session_state.get("logout_triggered") or ctx_cookies.get("auth_logout_in_progress") == "1"
+    
+    if logout_in_progress:
+        logger.info("Logout/Purge in progress: Blocking auto-login and cleaning tokens.")
+        
+        # Purge ALL auth cookies from the browser immediately
+        for cname in ["auth_token", "auth_user", "auth_profile", "auth_session_active", "auth_logout_in_progress"]:
+            try:
+                cookie_manager.delete(cname, key=f"purge_{cname}")
+            except KeyError:
+                pass
+            
+        # Reset server-side flags
         st.session_state.authenticated = False
-        st.session_state.logout_triggered = False
+        
+        # Log the action (Once)
+        if "logout_audited" not in st.session_state:
+            log_to_audit("LOGOUT")
+            st.session_state.logout_audited = True
+            
+        # Show login page directly and return False to halt app.py
+        # Crucially, we do NOT reset 'logout_triggered' here. 
+        # This keeps the door "Hard Locked" until a new login happens.
         show_login_page()
         return False
 
-    # 2. Check current session state (Fast path)
+    # 2. PRIORITY 2: Check current session state (Fast path: already initialized)
     if st.session_state.get("authenticated", False):
         return True
 
-    # 3. Handle Async Cookie Loading (Surgical One-Shot)
-    all_cookies = cookie_manager.get_all()
+    # 3. PRIORITY 3: Hybrid Cookie Check (Fast Header + Patient Component)
+    # Check 1: Synchronous Headers (Fast)
+    session_active = ctx_cookies.get("auth_session_active")
     
-    # On refresh, all_cookies starts as {}. We wait once, silently.
-    if not all_cookies:
-        if "cookie_wait_count" not in st.session_state:
-            st.session_state.cookie_wait_count = 0
-            
-        if st.session_state.cookie_wait_count < 1: # Reduced from 3 to 1 for speed
-            st.session_state.cookie_wait_count += 1
-            time.sleep(0.1) # Tiny delay for JS component to wake up
-            st.rerun()
-
-    # 4. Check for Sentinel Switch (The Master Switch)
-    session_active = all_cookies.get("auth_session_active")
-    
+    # Check 2: Patient Sync (If headers are empty, we wait once for the JS component)
+    all_cookies = {} 
     if session_active != "1":
-        # No session sentinel found. Show login page.
+        # Check if the component has data
+        all_cookies = cookie_manager.get_all()
+        session_active = all_cookies.get("auth_session_active")
+        
+        # If still nothing, wait one cycle ONLY if we were previously logged in or expect to be
+        if not session_active:
+            if "cookie_wait_count" not in st.session_state:
+                st.session_state.cookie_wait_count = 0
+                
+            if st.session_state.cookie_wait_count < 1:
+                st.session_state.cookie_wait_count += 1
+                time.sleep(0.1)
+                st.rerun()
+
+    # 4. Final Sentinel Check
+    if session_active != "1":
+        # Truly no session found. Show login page.
         show_login_page()
         return False
     
-    # Special: On the very first SUCCESSFUL auth frame after a reload/login, 
-    # we don't want to block. We proceed.
-    is_authenticated = st.session_state.get("authenticated", False)
-
-    if session_active != "1" and not is_authenticated:
-        # We only show the login page if we have truly waited and NO session was found.
-        show_login_page()
-        return False
-
-    # 5. Fallback to Cookies (Only because Sentinel is active)
-    if not is_authenticated:
-        saved_token = all_cookies.get("auth_token")
-        saved_user = all_cookies.get("auth_user")
+    # 5. Restore Session (Frame 0 Restoration)
+    # Prefer context cookies for speed, fallback to all_cookies for robustness
+    # Decoding is REQUIRED for context cookies as they are URL-encoded
+    raw_token = ctx_cookies.get("auth_token") or all_cookies.get("auth_token")
+    raw_user = ctx_cookies.get("auth_user") or all_cookies.get("auth_user")
+    
+    saved_token = urllib.parse.unquote(raw_token) if raw_token else None
+    saved_user = urllib.parse.unquote(raw_user) if raw_user else None
+    
+    if saved_token and saved_user:
+        logger.info(f"Restoring 1-hour session instantly for: {saved_user}")
+        st.session_state.authenticated = True
+        st.session_state.username = saved_user
+        st.session_state.user_email = saved_user
+        st.session_state.session_token = saved_token
         
-        if saved_token and saved_user:
-            logger.info(f"Restoring session from cookies for user: {saved_user}")
-            st.session_state.authenticated = True
-            st.session_state.username = saved_user
-            st.session_state.user_email = saved_user
-            st.session_state.session_token = saved_token
-            
-            saved_profile = all_cookies.get("auth_profile")
-            if saved_profile:
-                try:
-                    st.session_state.auth_profile = json.loads(saved_profile)
-                except:
-                    pass
-            # Reset wait count
-            st.session_state.cookie_wait_count = 0
-            return True
-
-    # Reset wait count if we are already authenticated
-    if is_authenticated:
-        st.session_state.cookie_wait_count = 0
+        raw_profile = ctx_cookies.get("auth_profile") or all_cookies.get("auth_profile")
+        if raw_profile:
+            try:
+                decoded_profile = urllib.parse.unquote(raw_profile)
+                st.session_state.auth_profile = json.loads(decoded_profile)
+            except:
+                pass
         return True
 
-    # 6. Completely unauthenticated
+
+    # 6. Fallback (If sentinel exists but data is missing)
     show_login_page()
     return False
 
@@ -246,22 +280,17 @@ def require_login():
     return False
 
 def logout(cookie_manager=None):
-    logger.info("Triggering secure logout with Sentinel purge...")
-    log_to_audit("LOGOUT")
+    """Stages a logout request. The actual purge happens in the top-level require_login guard."""
+    logger.info("Logout button clicked. Staging secure exit with Hard Sentinel...")
     
-    # 1. Purge Sentinel IMMEDIATELY
+    # 1. Set a "Hard Purge" cookie that the browser will see on the NEXT incoming header
     if cookie_manager:
-        cookie_manager.delete("auth_session_active", key="purge_sentinel")
+        # Short 30-second duration is enough to bridge the logout cycle
+        expiry = datetime.datetime.now() + datetime.timedelta(seconds=30)
+        cookie_manager.set("auth_logout_in_progress", "1", key="set_hard_sentinel", expires_at=expiry)
     
-    # 2. Clear server flags
-    st.session_state.authenticated = False
+    # 2. Stage the server-side trigger
     st.session_state.logout_triggered = True
-    
-    # 3. Clear session sensitive data
-    st.session_state.clear()
-    st.session_state.logout_triggered = True # Re-set after clear
-    
-    # 4. Rerun to hit the top-level require_login guard
     st.rerun()
 
 # Main logic

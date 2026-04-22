@@ -20,7 +20,8 @@ st.set_page_config(
 )
 
 from auth import require_login
-require_login()
+if not require_login():
+    st.stop()
 
 inject_minimalist_theme()
 
@@ -130,10 +131,8 @@ with col_upload:
 # UI INITIALIZATION (SIDEBAR & FILTERS)
 # -------------------------------
 # ✅ SYNC LIVE STATE
-# On the very first frame after login, we wait briefly for cookies/widgets to sync.
-if "first_load_done" not in st.session_state:
-    time.sleep(0.1)
-    st.session_state.first_load_done = True
+# On any frame, we ensure the dashboard is starting cleanly.
+# The auth state is now handled synchronously in require_login().
 
 # Pull latest widget choices into temp_filters
 filters_config = TABLE_CONFIG[selected_table]["filters"]
