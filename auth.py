@@ -156,6 +156,8 @@ def show_login_page():
                     cookie_manager.set("auth_session_active", "1", key="set_asa")
 
                     logger.info(f"User {username_or_email} logged in successfully.")
+                    # Force a cache clear to ensure the first dashboard load is live and correct
+                    st.cache_data.clear()
                     st.rerun()
                 else:
                     logger.warning(f"Login failed for {username_or_email}: {response_data}")
@@ -174,27 +176,30 @@ def require_login():
         show_login_page()
         return False
 
-    # 2. Check current session state
+    # 2. Check current session state (Fast path)
     if st.session_state.get("authenticated", False):
         return True
 
-    # 3. Handle Async Cookie Loading (Patient Guard)
+    # 3. Handle Async Cookie Loading (Surgical One-Shot)
     all_cookies = cookie_manager.get_all()
     
-    # On refresh, all_cookies starts as {}. We give it up to 3 cycles to "wake up".
-    if not all_cookies and not st.session_state.get("authenticated"):
+    # On refresh, all_cookies starts as {}. We wait once, silently.
+    if not all_cookies:
         if "cookie_wait_count" not in st.session_state:
             st.session_state.cookie_wait_count = 0
             
-        if st.session_state.cookie_wait_count < 3:
+        if st.session_state.cookie_wait_count < 1: # Reduced from 3 to 1 for speed
             st.session_state.cookie_wait_count += 1
-            # Show a subtle loading state that doesn't feel like a logout
-            with st.status("🔄 Checking session...", expanded=False):
-                time.sleep(0.1)
-                st.rerun()
+            time.sleep(0.1) # Tiny delay for JS component to wake up
+            st.rerun()
 
     # 4. Check for Sentinel Switch (The Master Switch)
     session_active = all_cookies.get("auth_session_active")
+    
+    if session_active != "1":
+        # No session sentinel found. Show login page.
+        show_login_page()
+        return False
     
     # Special: On the very first SUCCESSFUL auth frame after a reload/login, 
     # we don't want to block. We proceed.

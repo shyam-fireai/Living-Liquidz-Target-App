@@ -85,10 +85,11 @@ table_display = [TABLE_CONFIG[t]["name"] for t in table_keys]
 selected_display = st.sidebar.radio("Select Table", table_display)
 selected_table = table_keys[table_display.index(selected_display)]
 
-# RESET FILTERS ON TABLE SWITCH
+# RESET FILTERS ON TABLE SWITCH (OR INITIAL COLD START)
 if st.session_state.current_table != selected_table:
-    logger.info(f"Switching table to: {selected_table}")
+    logger.info(f"Synchronizing table state: {st.session_state.current_table} -> {selected_table}")
     st.session_state.applied_filters = {}
+    st.session_state.temp_filters = {} # Explicitly reset to ensure cold start is clean
     st.session_state.upload_done = False
     st.session_state.upload_msg = ""
     st.session_state.current_table = selected_table
@@ -125,65 +126,68 @@ with col_upload:
         st.session_state.page = "upload"
         st.rerun()
 
+# -------------------------------
+# UI INITIALIZATION (SIDEBAR & FILTERS)
+# -------------------------------
+# ✅ SYNC LIVE STATE
+# On the very first frame after login, we wait briefly for cookies/widgets to sync.
+if "first_load_done" not in st.session_state:
+    time.sleep(0.1)
+    st.session_state.first_load_done = True
+
+# Pull latest widget choices into temp_filters
+filters_config = TABLE_CONFIG[selected_table]["filters"]
+for col in filters_config:
+    w_key = f"sb_filter_{col}_{selected_table}"
+    if w_key in st.session_state:
+        st.session_state.temp_filters[col] = st.session_state[w_key]
+
+# 1. Fetch filter options (cached in db.py)
+all_filters = get_all_filter_values(selected_table, st.session_state.temp_filters)
+
+# 2. Render Sidebar Filters
+st.sidebar.subheader("🔍 Filters")
+
+for col in filters_config:
+    values = all_filters.get(col, [])
+
+    if col == "date":
+        # Compact Date Range Picker
+        prev_dates = st.session_state.temp_filters.get(col, [])
+        d1_val = prev_dates[0] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 1 else None
+        d2_val = prev_dates[1] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 2 else None
+        
+        st.sidebar.caption("📅 Select Date Range")
+        selected = st.sidebar.date_input(
+            "Range",
+            value=(d1_val, d2_val) if d1_val and d2_val else (d1_val,) if d1_val else [],
+            key=f"sb_filter_{col}_{selected_table}",
+            label_visibility="collapsed"
+        )
+    else:
+        selected = st.sidebar.multiselect(
+            format_column(col),
+            values,
+            key=f"sb_filter_{col}_{selected_table}",
+            default=[v for v in st.session_state.temp_filters.get(col, []) if v in values]
+        )
+
+    # Update temp state immediately for cascading effect next rerun
+    st.session_state.temp_filters[col] = selected
+
+# 3. Sidebar Reset
+if st.sidebar.button("🔄 Reset Filters", use_container_width=True):
+    st.session_state.applied_filters = {}
+    st.session_state.temp_filters = {}
+    st.rerun()
 
 # -------------------------------
-# LOAD FILTERS + DATA TOGETHER
+# DATA FETCHING (ISOLATED SPINNER)
 # -------------------------------
-with st.spinner("Loading dashboard..."):
+with st.spinner(f"Loading {TABLE_CONFIG[selected_table]['name']}..."):
     _dash_start = time.perf_counter()
-
-    # ✅ SYNC LIVE STATE
-    # At the start of rerun, pull latest widget choices into temp_filters
-    filters_config = TABLE_CONFIG[selected_table]["filters"]
-    for col in filters_config:
-        w_key = f"sb_filter_{col}_{selected_table}"
-        if w_key in st.session_state:
-            st.session_state.temp_filters[col] = st.session_state[w_key]
-
-    # ✅ DYNAMIC CASCADING FILTERS
-    all_filters = get_all_filter_values(selected_table, st.session_state.temp_filters)
-
-    st.sidebar.subheader("🔍 Filters")
-
-    for col in filters_config:
-        values = all_filters.get(col, [])
-
-        if col == "date":
-            # Compact Date Range Picker
-            prev_dates = st.session_state.temp_filters.get(col, [])
-            d1_val = prev_dates[0] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 1 else None
-            d2_val = prev_dates[1] if isinstance(prev_dates, (list, tuple)) and len(prev_dates) >= 2 else None
-            
-            st.sidebar.caption("📅 Select Date Range")
-            selected = st.sidebar.date_input(
-                "Range",
-                value=(d1_val, d2_val) if d1_val and d2_val else (d1_val,) if d1_val else [],
-                key=f"sb_filter_{col}_{selected_table}",
-                label_visibility="collapsed"
-            )
-        else:
-            selected = st.sidebar.multiselect(
-                format_column(col),
-                values,
-                key=f"sb_filter_{col}_{selected_table}",
-                default=[v for v in st.session_state.temp_filters.get(col, []) if v in values]
-            )
-
-        # Update temp state immediately for cascading effect next rerun
-        st.session_state.temp_filters[col] = selected
-
-    # -------------------------------
-    # RESET
-    # -------------------------------
-    if st.sidebar.button("🔄 Reset Filters", use_container_width=True):
-        st.session_state.applied_filters = {}
-        st.session_state.temp_filters = {}
-        st.rerun()
-
-    # -------------------------------
-    # FETCH DATA (LIVE)
-    # -------------------------------
-    # Only use filters if they actually contain selections (avoids empty results on first load)
+    
+    # Only use filters if they actually contain selections
     active_filters = {k: v for k, v in st.session_state.temp_filters.items() if v}
     
     if active_filters:
@@ -194,8 +198,7 @@ with st.spinner("Loading dashboard..."):
         df = fetch_data(selected_table, limit=200)
     
     _dash_end = time.perf_counter()
-    logger.info(f"Dashboard data loading block took {_dash_end - _dash_start:.4f} seconds")
-    print(f"[LOG] Dashboard data loading block took {_dash_end - _dash_start:.4f} seconds")
+    logger.info(f"Data load took {_dash_end - _dash_start:.4f} seconds")
 
 # (Month derivation removed as requested)
 
