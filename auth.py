@@ -27,31 +27,25 @@ class AuthService:
                 creds = json.load(f)
             self.base_url = creds.get("FIREAI_BASE_URL", os.getenv("FIREAI_BASE_URL"))
             self.api_key = creds.get("FIREAI_API_KEY", os.getenv("FIREAI_API_KEY"))
-            raw_allowed = os.getenv("ALLOWED_EMAILS") or creds.get("ALLOWED_EMAILS")
+            raw_allowed = os.getenv("ALLOWED_EMAILS") or creds.get("ALLOWED_EMAILS", [])
             if isinstance(raw_allowed, list):
                 self.allowed_emails = [e.strip().lower() for e in raw_allowed if e.strip()]
             elif isinstance(raw_allowed, str):
                 self.allowed_emails = [e.strip().lower() for e in raw_allowed.split(",") if e.strip()]
             else:
-                self.allowed_emails = [
-                    "gyaneswar@livingliquidz.com",
-                    "shyam@fireai.in",
-                    "amit@mansionz.com"
-                ]
+                self.allowed_emails = []
             logger.info(f"AuthService initialized with Base URL: {self.base_url}")
         except Exception as e:
             logger.error(f"Failed to load secrets for AuthService: {e}")
             self.base_url = os.getenv("FIREAI_BASE_URL")
             self.api_key = os.getenv("FIREAI_API_KEY")
-            raw_allowed = os.getenv("ALLOWED_EMAILS")
-            if raw_allowed:
+            raw_allowed = os.getenv("ALLOWED_EMAILS", "")
+            if isinstance(raw_allowed, list):
+                self.allowed_emails = [e.strip().lower() for e in raw_allowed if e.strip()]
+            elif isinstance(raw_allowed, str):
                 self.allowed_emails = [e.strip().lower() for e in raw_allowed.split(",") if e.strip()]
             else:
-                self.allowed_emails = [
-                    "gyaneswar@livingliquidz.com",
-                    "shyam@fireai.in",
-                    "amit@mansionz.com"
-                ]
+                self.allowed_emails = []
 
     def login(self, email, password):
         # Restrict to allowed emails (loaded from ENV/secrets)
