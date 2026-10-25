@@ -240,4 +240,4 @@ styled_df = df.style.set_table_styles(
     [{'selector': 'th', 'props': [('font-weight', 'bold !important'), ('color', 'black !important')]}]
 )
 
-st.dataframe(styled_df, column_config=config, use_container_width=True, hide_index=True)
+st.dataframe(styled_df, column_config=config, use_container_width=True, hide_index=True)

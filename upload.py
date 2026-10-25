@@ -46,13 +46,11 @@ def upload_screen(selected_table):
     )
 
     if selected_table == "date_branch_wise_target":
-        st.info(f"""
--  **Upload ONLY this file name:** `{expected_filename}`
+        st.info("""
 -  **Format Hint:** The 'date' column must use the standard format (e.g., **2026-04-17**).
 """)
     else:
-        st.info(f"""
--  **Upload ONLY this file name:** `{expected_filename}`
+        st.info("""
 -  **Format Hint:** The 'month' column must always be the **1st day** of the month (e.g., **2026-03-01**).
 """)
 
@@ -63,11 +61,6 @@ def upload_screen(selected_table):
 
     if uploaded_file is not None:
         logger.info(f"File uploaded: {uploaded_file.name} for table: {selected_table}")
-
-        if uploaded_file.name != expected_filename:
-            logger.warning(f"File Rejected: Name mismatch. Expected {expected_filename}, got {uploaded_file.name}")
-            st.error("❌ Invalid file! Please upload the downloaded sample file only.")
-            return
 
         try:
             df = pd.read_csv(uploaded_file)
