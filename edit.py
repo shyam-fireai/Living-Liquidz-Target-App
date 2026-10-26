@@ -13,6 +13,7 @@ from db import (
     clean_dataframe_for_db,
     log_audit_action
 )
+from upload import generate_daily_targets_from_monthly
 from style_utils import inject_minimalist_theme, render_header
 import logging
 
@@ -61,7 +62,7 @@ def edit_screen(selected_table):
     
     with col_edit:
         # Realign the Back button to the header area
-        if st.button("⬅️ Back", use_container_width=True):
+        if st.button("⬅️ Back", width="stretch"):
             st.session_state.page = "dashboard"
             st.rerun()
 
@@ -126,7 +127,7 @@ def edit_screen(selected_table):
     # -------------------------------
     # RESET
     # -------------------------------
-    if st.sidebar.button("🔄 Reset Filters", use_container_width=True):
+    if st.sidebar.button("🔄 Reset Filters", width="stretch"):
         st.session_state.edit_temp_filters = {}
         st.session_state.edit_applied_filters = {}
         st.session_state.edit_confirmed_df = None
@@ -181,7 +182,7 @@ def edit_screen(selected_table):
     
     edited_df = st.data_editor(
         display_df,
-        use_container_width=True,
+        width="stretch",
         num_rows="fixed",
         column_config=editor_config,
         hide_index=False,
@@ -273,10 +274,10 @@ def edit_screen(selected_table):
         st.subheader("🔍 Changes Summary")
 
         st.markdown("### 🟥 Before")
-        st.dataframe(original_rows.rename(columns=format_column), use_container_width=True)
+        st.dataframe(original_rows.rename(columns=format_column), width="stretch")
 
         st.markdown("### 🟩 After")
-        st.dataframe(changed_rows.rename(columns=format_column), use_container_width=True)
+        st.dataframe(changed_rows.rename(columns=format_column), width="stretch")
 
         st.info("👉 Review your changes above and click Final Save below.")
 
@@ -284,7 +285,7 @@ def edit_screen(selected_table):
     # FINAL SAVE
     # -------------------------------
     if has_changed and not st.session_state.just_saved:
-        if st.button("💾 Final Save", use_container_width=True, type="primary"):
+        if st.button("💾 Final Save", width="stretch", type="primary"):
             logger.info(f"Final Save clicked for {selected_table}")
 
             try:
@@ -385,6 +386,47 @@ def edit_screen(selected_table):
                         before_state=before_dict,
                         after_state=after_dict
                     )
+
+                    # Dual synchronization for branch_wise_monthly_target -> date_branch_wise_target
+                    if selected_table == "branch_wise_monthly_target":
+                        try:
+                            logger.info(f"Synchronizing {len(rows_to_update)} edited monthly target row(s) to date_branch_wise_target...")
+                            # Clean numeric columns before generating daily targets
+                            clean_monthly_rows = clean_dataframe_for_db(rows_to_update.copy())
+                            clean_monthly_rows["month"] = pd.to_datetime(clean_monthly_rows["month"])
+
+                            # Deactivate old daily targets if key columns changed
+                            if keys_to_kill:
+                                for idx, row in rows_to_update.iterrows():
+                                    orig_row = original_df.loc[idx]
+                                    orig_m = pd.to_datetime(orig_row["month"])
+                                    orig_b = str(orig_row["branch_name"]).replace("'", "''")
+                                    orig_s = str(orig_row["series_group"]).replace("'", "''")
+                                    start_d = orig_m.strftime("%Y-%m-01")
+                                    days_cnt = pd.Period(start_d).days_in_month
+                                    end_d = orig_m.strftime(f"%Y-%m-{days_cnt:02d}")
+                                    kill_daily = f"ALTER TABLE date_branch_wise_target UPDATE is_active = 0 WHERE branch_name = '{orig_b}' AND series_group = '{orig_s}' AND date >= '{start_d}' AND date <= '{end_d}'"
+                                    logger.info(f"Deactivating old daily targets for key change: {kill_daily}")
+                                    execute_query(kill_daily)
+
+                            df_daily_sync = generate_daily_targets_from_monthly(clean_monthly_rows)
+                            if not df_daily_sync.empty:
+                                daily_success, daily_msg = insert_dataframe("date_branch_wise_target", df_daily_sync)
+                                if daily_success:
+                                    log_audit_action(
+                                        action_type="EDIT",
+                                        target_table="date_branch_wise_target",
+                                        record_count=len(df_daily_sync),
+                                        metadata={"source": "branch_wise_monthly_target_edit_sync"}
+                                    )
+                                    msg = f"{msg} | date_branch_wise_target: {len(df_daily_sync)} daily records updated successfully"
+                                    logger.info(f"Daily targets synced: {msg}")
+                                else:
+                                    logger.error(f"date_branch_wise_target sync failed: {daily_msg}")
+                                    msg = f"{msg} | Warning: date_branch_wise_target sync failed ({daily_msg})"
+                        except Exception as ex_sync:
+                            logger.error(f"Error synchronizing daily targets: {ex_sync}")
+                            msg = f"{msg} | Warning: date_branch_wise_target sync failed ({ex_sync})"
                     
                     st.success(f"✅ {msg}")
 

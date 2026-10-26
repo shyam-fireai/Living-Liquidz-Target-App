@@ -225,14 +225,14 @@ def clean_dataframe_for_db(df):
         if col in string_cols:
             # Force to string, uppercase, and fill nulls with empty string
             df[col] = df[col].astype(str).str.upper().replace(["NONE", "NAN", "<NA>"], "")
-        elif df[col].dtype == "object":
-            # For other object types, fill with empty string
-            df[col] = df[col].fillna("")
         elif any(x in col.lower() for x in ["target", "incentive", "qty"]):
             # Ensure targets, incentives and quantities are numeric
             # Clean any ₹ or , symbols if they exist (allows us to save from formatted editor)
             df[col] = df[col].astype(str).str.replace("₹", "", regex=False).str.replace(",", "", regex=False)
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        elif df[col].dtype == "object":
+            # For other object types, fill with empty string
+            df[col] = df[col].fillna("")
         else:
             # For integers and others
             df[col] = df[col].fillna(0)
