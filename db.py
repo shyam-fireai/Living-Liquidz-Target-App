@@ -362,7 +362,7 @@ def json_serial(obj):
         return obj.isoformat()
     return str(obj)
 
-def log_audit_action(action_type, target_table=None, record_count=0, before_state=None, after_state=None, error_message=None, metadata=None):
+def log_audit_action(action_type, target_table=None, record_count=0, before_state=None, after_state=None, error_message=None, metadata=None, user_email=None):
     logger.info(f"Recording Audit Action: {action_type} for {target_table or 'Global'}")
     try:
         client = get_client()
@@ -371,7 +371,19 @@ def log_audit_action(action_type, target_table=None, record_count=0, before_stat
         if "audit_session_id" not in st.session_state:
             st.session_state.audit_session_id = "Session_" + str(int(time.time() * 1000))
         
-        user_email = st.session_state.get("user_email", "Anonymous")
+        # Resolve user email: passed argument > session_state > cookies > fallback
+        if not user_email:
+            user_email = st.session_state.get("user_email")
+        if not user_email:
+            try:
+                import urllib.parse
+                raw_u = getattr(st.context, "cookies", {}).get("auth_user")
+                if raw_u:
+                    user_email = urllib.parse.unquote(raw_u)
+            except Exception:
+                pass
+        if not user_email:
+            user_email = "Anonymous"
 
         data = {
             "session_id": st.session_state.audit_session_id,

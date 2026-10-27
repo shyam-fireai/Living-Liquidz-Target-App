@@ -94,11 +94,11 @@ class AuthService:
 # Initialize auth service
 auth_service = AuthService()
 
-def log_to_audit(action_type, message=None):
+def log_to_audit(action_type, message=None, user_email=None):
     """Bridge to the audit logger in db.py"""
     try:
         from db import log_audit_action
-        log_audit_action(action_type=action_type, error_message=message)
+        log_audit_action(action_type=action_type, error_message=message, user_email=user_email)
     except Exception as e:
         logger.error(f"Audit Log Failed: {e}")
 
@@ -181,7 +181,10 @@ def show_login_page():
             success, response_data = auth_service.login(username_or_email, password)
             
             if success:
-                log_to_audit("LOGIN")
+                st.session_state.authenticated = True
+                st.session_state.username = username_or_email
+                st.session_state.user_email = username_or_email
+                log_to_audit("LOGIN", user_email=username_or_email)
                 token = _generate_session_token(username_or_email)
                 
                 user_data = response_data.get("user", {})
@@ -194,9 +197,6 @@ def show_login_page():
                     "refresh_token": response_data.get("refresh_token")
                 }
                 # 4. Store in session state (Fast path access)
-                st.session_state.authenticated = True
-                st.session_state.username = username_or_email
-                st.session_state.user_email = username_or_email
                 st.session_state.session_token = token
                 st.session_state.auth_profile = profile
                 
@@ -242,6 +242,13 @@ def require_login():
     if logout_in_progress:
         logger.info("Logout/Purge in progress: Blocking auto-login and cleaning tokens.")
         
+        # Capture user before purging cookies/session
+        logout_email = (
+            st.session_state.get("user_email")
+            or st.session_state.get("username")
+            or (urllib.parse.unquote(ctx_cookies.get("auth_user")) if ctx_cookies.get("auth_user") else None)
+        )
+
         # Purge ALL auth cookies from the browser immediately
         for cname in ["auth_token", "auth_user", "auth_profile", "auth_session_active", "auth_logout_in_progress"]:
             try:
@@ -254,7 +261,7 @@ def require_login():
         
         # Log the action (Once)
         if "logout_audited" not in st.session_state:
-            log_to_audit("LOGOUT")
+            log_to_audit("LOGOUT", user_email=logout_email)
             st.session_state.logout_audited = True
             
         # Show login page directly and return False to halt app.py
