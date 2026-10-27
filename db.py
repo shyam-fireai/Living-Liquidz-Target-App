@@ -372,17 +372,6 @@ def log_audit_action(action_type, target_table=None, record_count=0, before_stat
             st.session_state.audit_session_id = "Session_" + str(int(time.time() * 1000))
         
         user_email = st.session_state.get("user_email", "Anonymous")
-        device_info = "Unknown Device"
-        ip_address = "Unknown IP"
-        
-        # Attempt to grab Streamlit headers for Browser/IP Details safely
-        try:
-            from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
-            ctx = get_script_run_ctx()
-            if ctx and hasattr(ctx, "session_id"):
-                device_info = f"Streamlit_Session:{ctx.session_id}"
-        except Exception:
-            pass
 
         data = {
             "session_id": st.session_state.audit_session_id,
@@ -392,8 +381,8 @@ def log_audit_action(action_type, target_table=None, record_count=0, before_stat
             "record_count": int(record_count) if record_count else 0,
             "before_state": json.dumps(before_state, default=json_serial) if before_state else "",
             "after_state": json.dumps(after_state, default=json_serial) if after_state else "",
-            "device_info": device_info,
-            "ip_address": ip_address,
+            "device_info": "",
+            "ip_address": "",
             "error_message": error_message or "",
             "metadata": json.dumps(metadata, default=json_serial) if metadata else ""
         }
