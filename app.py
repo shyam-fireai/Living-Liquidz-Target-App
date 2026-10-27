@@ -80,10 +80,20 @@ REQUIRED_COLUMNS = TABLE_SCHEMAS
 # -------------------------------
 st.sidebar.title("📂 Tables")
 
-table_keys = list(TABLE_CONFIG.keys())
+# On Edit and Upload screens, hide 'Date & Branch Wise Target'
+if st.session_state.page in ["edit", "upload"]:
+    table_keys = [t for t in TABLE_CONFIG.keys() if t != "date_branch_wise_target"]
+else:
+    table_keys = list(TABLE_CONFIG.keys())
+
 table_display = [TABLE_CONFIG[t]["name"] for t in table_keys]
 
-selected_display = st.sidebar.radio("Select Table", table_display)
+# Ensure currently selected table is in the list
+current_index = 0
+if "current_table" in st.session_state and st.session_state.current_table in table_keys:
+    current_index = table_keys.index(st.session_state.current_table)
+
+selected_display = st.sidebar.radio("Select Table", table_display, index=current_index)
 selected_table = table_keys[table_display.index(selected_display)]
 
 # RESET FILTERS ON TABLE SWITCH (OR INITIAL COLD START)
@@ -99,6 +109,12 @@ if st.session_state.current_table != selected_table:
 # EDIT PAGE
 # -------------------------------
 if st.session_state.page == "edit":
+    if selected_table == "date_branch_wise_target":
+        st.warning("⚠️ Editing 'Date & Branch Wise Target' directly is disabled. Please edit via 'Branch Wise Monthly Target'.")
+        if st.button("⬅️ Back to Dashboard"):
+            st.session_state.page = "dashboard"
+            st.rerun()
+        st.stop()
     from edit import edit_screen
     edit_screen(selected_table)
     st.stop()
@@ -107,6 +123,12 @@ if st.session_state.page == "edit":
 # UPLOAD PAGE
 # -------------------------------
 if st.session_state.page == "upload":
+    if selected_table == "date_branch_wise_target":
+        st.warning("⚠️ Direct upload for 'Date & Branch Wise Target' is disabled. Please upload via 'Branch Wise Monthly Target'.")
+        if st.button("⬅️ Back to Dashboard"):
+            st.session_state.page = "dashboard"
+            st.rerun()
+        st.stop()
     from upload import upload_screen
     upload_screen(selected_table)
     st.stop()
@@ -115,17 +137,22 @@ if st.session_state.page == "upload":
 # HEADER & NAVIGATION (SINGLE ROW)
 # -------------------------------
 display_name = TABLE_CONFIG[selected_table]["name"]
-col_edit, col_upload = render_header(title=display_name)
+is_date_branch_target = (selected_table == "date_branch_wise_target")
 
-with col_edit:
-    if st.button("📝 Edit", use_container_width=True):
-        st.session_state.page = "edit"
-        st.rerun()
+# For Date & Branch Wise Target, hide Edit and Upload buttons from header
+if is_date_branch_target:
+    render_header(title=display_name, hide_upload=True)
+else:
+    col_edit, col_upload = render_header(title=display_name)
+    with col_edit:
+        if st.button("📝 Edit", use_container_width=True):
+            st.session_state.page = "edit"
+            st.rerun()
 
-with col_upload:
-    if st.button("📤 Upload", use_container_width=True):
-        st.session_state.page = "upload"
-        st.rerun()
+    with col_upload:
+        if st.button("📤 Upload", use_container_width=True):
+            st.session_state.page = "upload"
+            st.rerun()
 
 # -------------------------------
 # UI INITIALIZATION (SIDEBAR & FILTERS)
