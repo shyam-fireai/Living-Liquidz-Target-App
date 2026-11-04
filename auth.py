@@ -168,7 +168,7 @@ def show_login_page():
 
     # Clean, Centered Content
     st.title("Secure Login")
-    st.markdown("Enter your credentials to access the Dashboard.")
+    st.markdown("Enter your credentials to access the Application.")
     st.divider()
 
     with st.form("login_form"):
