@@ -93,8 +93,7 @@ def get_client():
             password=conf['password'],
             database=conf['database'],
             # Connected with Localhost while changing db creds to  live pls add the secure = True and remove compress
-            secure=False,
-            compress = False,
+            secure=True,
             connect_timeout=30,
             send_receive_timeout=60
         )
